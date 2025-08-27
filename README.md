@@ -71,11 +71,11 @@ The program correctly implements these SKCC award requirements:
 
 8. **Triple Key Award**:
    - **Requirement**: Contact 300 different SKCC members using all three key types:
-     - 100 contacts using straight key
-     - 100 contacts using bug/semi-automatic
-     - 100 contacts using sideswiper/cootie
-   - **Key Type Detection**: Automatically detects from ADIF key_type field or comment field
-   - **Exchange**: Must mention key type used (e.g., "SK", "BUG", "SS" abbreviations accepted)
+     - 100 contacts using straight key (SK)
+     - 100 contacts using bug
+     - 100 contacts using sideswiper (cootie)
+   - **Key Type Detection**: Recognizes "SK", "STRAIGHT", "BUG", "SIDESWIPER", "COOTIE"
+   - **Exchange**: Must mention key type used during QSO (abbreviations like "SK", "BUG" accepted)
    - Valid after November 10, 2018; both parties must be SKCC members at time of QSO
 
 ## Requirements

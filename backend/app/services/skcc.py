@@ -1182,15 +1182,15 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     bug_members = set()
     sideswiper_members = set()
     
-    # Define key type mappings
+    # Define key type mappings - simplified to core SKCC key types
     STRAIGHT_KEY_TYPES = {
-        "SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY", "HAND KEY", "HANDKEY"
+        "SK", "STRAIGHT"
     }
     BUG_TYPES = {
-        "BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC", "VIBROPLEX"
+        "BUG"
     }
     SIDESWIPER_TYPES = {
-        "SS", "SIDESWIPER", "SIDE SWIPER", "COOTIE", "COOTIES"
+        "SIDESWIPER", "COOTIE"
     }
     
     for qso in qsos:
