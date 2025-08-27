@@ -189,6 +189,21 @@ class AwardsGUI:
             self.triple_key_tree.column(col, width=w, anchor=tk.CENTER)
         self.triple_key_tree.pack(fill=tk.BOTH, expand=True)
 
+        # Rag Chew Awards tab
+        rag_chew_tab = ttk.Frame(notebook)
+        notebook.add(rag_chew_tab, text="Rag Chew")
+        self.rag_chew_tree = ttk.Treeview(rag_chew_tab, columns=("level", "band", "minutes", "qsos", "achieved"), show="headings")
+        for col, txt, w in [
+            ("level", "Level", 80),
+            ("band", "Band", 60),
+            ("minutes", "Minutes", 100),
+            ("qsos", "QSOs", 60),
+            ("achieved", "Achieved", 80),
+        ]:
+            self.rag_chew_tree.heading(col, text=txt)
+            self.rag_chew_tree.column(col, width=w, anchor=tk.CENTER)
+        self.rag_chew_tree.pack(fill=tk.BOTH, expand=True)
+
         # Unique count
         bottom = ttk.Frame(self.root, padding=4)
         bottom.pack(fill=tk.X)
@@ -308,7 +323,7 @@ class AwardsGUI:
         elif kind == "result":
             result = item[1]
             # Update awards tree
-            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree, self.pfx_tree, self.triple_key_tree):
+            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree, self.pfx_tree, self.triple_key_tree, self.rag_chew_tree):
                 for iid in tree.get_children():
                     tree.delete(iid)
             for a in result.awards:
@@ -377,6 +392,20 @@ class AwardsGUI:
                                                values=(key_type_text, current_text, threshold_text, percentage_text, achieved_text),
                                                text=tk_award.name,
                                                tags=("ach" if tk_award.achieved else ""))
+            
+            # Display Rag Chew Awards
+            for rc_award in result.rag_chew_awards:
+                if rc_award.current_minutes > 0 or rc_award.achieved:  # Only show if there's progress
+                    level_text = f"RC{rc_award.level}"
+                    band_text = rc_award.band if rc_award.band else "Overall"
+                    minutes_text = f"{rc_award.current_minutes}/{rc_award.threshold}"
+                    qsos_text = str(rc_award.qso_count)
+                    achieved_text = "Yes" if rc_award.achieved else "No"
+                    
+                    self.rag_chew_tree.insert("", tk.END,
+                                            values=(level_text, band_text, minutes_text, qsos_text, achieved_text),
+                                            text=rc_award.name,
+                                            tags=("ach" if rc_award.achieved else ""))
             
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"

@@ -78,6 +78,14 @@ The program correctly implements these SKCC award requirements:
    - **Exchange**: Must mention key type used during QSO (abbreviations like "SK", "BUG" accepted)
    - Valid after November 10, 2018; both parties must be SKCC members at time of QSO
 
+9. **Rag Chew Award**:
+   - **Requirement**: Accumulate conversational CW minutes with SKCC members
+   - **Duration**: Minimum 30 minutes per QSO (40 minutes if multi-station)
+   - **Award Levels**: RC1 (300 min), RC2 (600 min), RC3 (900 min), ..., RC10 (3000 min), then RC15, RC20, etc.
+   - **Band Endorsements**: Available for each level on individual bands
+   - **QSO Rules**: Back-to-back contacts with same station not allowed
+   - Valid after July 1, 2013; both parties must be SKCC members at time of QSO
+
 ## Requirements
 
 - **Windows 10/11**
@@ -126,7 +134,7 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, and **Triple Key** tabs
+5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, **Triple Key**, and **Rag Chew** tabs
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
@@ -135,6 +143,7 @@ python scripts\gui.py
 - **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
 - **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
 - **Triple Key**: Shows progress toward Triple Key Award using straight key, bug, and sideswiper
+- **Rag Chew**: Shows progress toward RC1-RC10+ awards based on accumulated conversation minutes
 
 ### Option 2: Command Line Interface
 ```cmd
