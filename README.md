@@ -21,6 +21,7 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **Multiple Interfaces**: Both GUI and command-line interfaces available  
 ✅ **Award Endorsements**: Calculates band and mode endorsements  
 ✅ **Canadian Maple Awards**: Calculates geographic-based awards for Canadian provinces/territories  
+✅ **DX Awards**: Supports both DXQ (QSO-based) and DXC (country-based) international awards  
 
 ### Award Rules Implemented
 
@@ -52,6 +53,14 @@ The program correctly implements these SKCC award requirements:
    - **Gold Maple**: Same as Red Maple but QRP (5 watts or less)
    - Valid after September 1, 2009 for provinces, January 2014 for territories
    - Supports VE1-VE9, VA1-VA9, VY0-VY2, VO1-VO2 call signs
+
+6. **DX Awards**:
+   - **DXQ Awards**: QSO-based, count unique QSOs with SKCC members from different countries
+   - **DXC Awards**: Country-based, count unique DXCC countries worked (one per country)
+   - Available thresholds: 10, 25, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500
+   - QRP endorsements available for all levels (5 watts or less)
+   - DXQ valid after June 14, 2009; DXC valid after December 19, 2009
+   - Both parties must be SKCC members at time of QSO
 
 ## Requirements
 
@@ -101,12 +110,13 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the **Awards**, **Endorsements**, and **Canadian Maple** tabs
+5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, and **DX Awards** tabs
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
 - **Endorsements**: Shows band and mode endorsement progress  
 - **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
+- **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
 
 ### Option 2: Command Line Interface
 ```cmd

@@ -145,6 +145,20 @@ class AwardsGUI:
             self.maple_tree.column(col, width=w, anchor=tk.CENTER)
         self.maple_tree.pack(fill=tk.BOTH, expand=True)
 
+        # DX Awards tab
+        dx_tab = ttk.Frame(notebook)
+        notebook.add(dx_tab, text="DX Awards")
+        self.dx_tree = ttk.Treeview(dx_tab, columns=("type", "threshold", "current", "achieved"), show="headings")
+        for col, txt, w in [
+            ("type", "Type", 80),
+            ("threshold", "Threshold", 80),
+            ("current", "Current", 80),
+            ("achieved", "Achieved", 80),
+        ]:
+            self.dx_tree.heading(col, text=txt)
+            self.dx_tree.column(col, width=w, anchor=tk.CENTER)
+        self.dx_tree.pack(fill=tk.BOTH, expand=True)
+
         # Unique count
         bottom = ttk.Frame(self.root, padding=4)
         bottom.pack(fill=tk.X)
@@ -264,7 +278,7 @@ class AwardsGUI:
         elif kind == "result":
             result = item[1]
             # Update awards tree
-            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree):
+            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree):
                 for iid in tree.get_children():
                     tree.delete(iid)
             for a in result.awards:
@@ -290,6 +304,21 @@ class AwardsGUI:
                                      values=(level_text, band_text, province_text, achieved_text),
                                      text=maple.name,
                                      tags=("ach" if maple.achieved else ""))
+            
+            # Display DX Awards
+            for dx in result.dx_awards:
+                if dx.current_count > 0 or dx.achieved:  # Only show if there's progress
+                    type_text = dx.award_type
+                    if dx.qrp_qualified:
+                        type_text += " QRP"
+                    threshold_text = str(dx.threshold)
+                    current_text = str(dx.current_count)
+                    achieved_text = "Yes" if dx.achieved else "No"
+                    
+                    self.dx_tree.insert("", tk.END,
+                                      values=(type_text, threshold_text, current_text, achieved_text),
+                                      text=dx.name,
+                                      tags=("ach" if dx.achieved else ""))
             
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"

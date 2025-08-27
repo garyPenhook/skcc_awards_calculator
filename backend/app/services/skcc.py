@@ -74,11 +74,23 @@ class CanadianMapleAward:
     bands_worked: List[str]
 
 @dataclass
+class DXAward:
+    name: str
+    award_type: str  # "DXQ" (QSO-based) or "DXC" (Country-based)
+    threshold: int   # 10, 25, 50, etc.
+    current_count: int
+    achieved: bool
+    countries_worked: List[str]  # List of DXCC entities worked
+    qrp_qualified: bool  # True if all QSOs were QRP
+    start_date: str  # "20090614" for DXQ, "20091219" for DXC
+
+@dataclass
 class AwardCheckResult:
     unique_members_worked: int
     awards: List[AwardProgress]
     endorsements: List[AwardEndorsement]
     canadian_maple_awards: List[CanadianMapleAward]  # New field
+    dx_awards: List[DXAward]  # New field for DX Awards
     total_qsos: int
     matched_qsos: int
     unmatched_calls: List[str]
@@ -139,6 +151,117 @@ CANADIAN_CALL_TO_PROVINCE = {
 
 # HF bands for Canadian Maple Award (160-10m including WARC)
 CANADIAN_MAPLE_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
+
+# DX Award thresholds for QSO-based (DXQ) and Country-based (DXC) awards
+DX_AWARD_THRESHOLDS = [10, 25, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500]
+
+# Common DXCC entity prefixes for initial country detection
+# This is a simplified list - in production, a full DXCC list would be used
+DXCC_PREFIXES = {
+    # North America
+    "K": "United States", "W": "United States", "N": "United States", "A": "United States",
+    "VE": "Canada", "VA": "Canada", "VO": "Canada", "VY": "Canada",
+    "XE": "Mexico", "XF": "Mexico", "4A": "Mexico",
+    
+    # Europe
+    "G": "England", "M": "England", "2E": "England",
+    "DL": "Germany", "DA": "Germany", "DB": "Germany", "DC": "Germany", "DD": "Germany", "DE": "Germany", "DF": "Germany", "DG": "Germany", "DH": "Germany", "DI": "Germany", "DJ": "Germany", "DK": "Germany", "DM": "Germany", "DN": "Germany", "DO": "Germany", "DP": "Germany", "DQ": "Germany", "DR": "Germany", "DS": "Germany", "DT": "Germany",
+    "F": "France", "TM": "France", "TK": "France",
+    "I": "Italy", "IZ": "Italy",
+    "EA": "Spain", "EB": "Spain", "EC": "Spain", "ED": "Spain", "EE": "Spain", "EF": "Spain", "EG": "Spain", "EH": "Spain",
+    "CT": "Portugal", "CQ": "Portugal", "CR": "Portugal", "CS": "Portugal",
+    "PA": "Netherlands", "PB": "Netherlands", "PC": "Netherlands", "PD": "Netherlands", "PE": "Netherlands", "PF": "Netherlands", "PG": "Netherlands", "PH": "Netherlands", "PI": "Netherlands",
+    "ON": "Belgium", "OO": "Belgium", "OP": "Belgium", "OQ": "Belgium", "OR": "Belgium", "OS": "Belgium", "OT": "Belgium",
+    "HB": "Switzerland", "HB0": "Liechtenstein", "HB9": "Switzerland",
+    "OE": "Austria",
+    "OK": "Czech Republic", "OL": "Czech Republic",
+    "OM": "Slovak Republic",
+    "SP": "Poland", "SN": "Poland", "SO": "Poland", "SQ": "Poland", "SR": "Poland",
+    "YO": "Romania", "YP": "Romania", "YQ": "Romania", "YR": "Romania",
+    "LZ": "Bulgaria",
+    "SV": "Greece", "SW": "Greece", "SX": "Greece", "SY": "Greece", "SZ": "Greece",
+    "YU": "Serbia", "YT": "Serbia", "YZ": "Serbia",
+    "9A": "Croatia",
+    "S5": "Slovenia",
+    "T9": "Bosnia-Herzegovina",
+    "E7": "Bosnia-Herzegovina",
+    "4O": "Montenegro",
+    "E4": "Palestine",
+    "LY": "Lithuania",
+    "YL": "Latvia",
+    "ES": "Estonia",
+    "OH": "Finland",
+    "SM": "Sweden", "SA": "Sweden", "SB": "Sweden", "SC": "Sweden", "SD": "Sweden", "SE": "Sweden", "SF": "Sweden", "SG": "Sweden", "SH": "Sweden", "SI": "Sweden", "SJ": "Sweden", "SK": "Sweden", "SL": "Sweden",
+    "LA": "Norway", "LB": "Norway", "LC": "Norway", "LD": "Norway", "LE": "Norway", "LF": "Norway", "LG": "Norway", "LH": "Norway", "LI": "Norway", "LJ": "Norway", "LK": "Norway", "LL": "Norway", "LM": "Norway", "LN": "Norway",
+    "OZ": "Denmark", "OV": "Faroe Islands", "OY": "Faroe Islands",
+    "TF": "Iceland",
+    "EI": "Ireland", "EJ": "Ireland",
+    "R": "European Russia", "U": "European Russia", "RA": "European Russia", "RB": "European Russia", "RC": "European Russia", "RD": "European Russia", "RE": "European Russia", "RF": "European Russia", "RG": "European Russia", "RH": "European Russia", "RI": "European Russia", "RJ": "European Russia", "RK": "European Russia", "RL": "European Russia", "RM": "European Russia", "RN": "European Russia", "RO": "European Russia", "RP": "European Russia", "RQ": "European Russia", "RR": "European Russia", "RS": "European Russia", "RT": "European Russia", "RU": "European Russia", "RV": "European Russia", "RW": "European Russia", "RX": "European Russia", "RY": "European Russia", "RZ": "European Russia",
+    
+    # Asia
+    "JA": "Japan", "JE": "Japan", "JF": "Japan", "JG": "Japan", "JH": "Japan", "JI": "Japan", "JJ": "Japan", "JK": "Japan", "JL": "Japan", "JM": "Japan", "JN": "Japan", "JO": "Japan", "JP": "Japan", "JQ": "Japan", "JR": "Japan", "JS": "Japan",
+    "HL": "South Korea", "HM": "South Korea", "DS": "South Korea", "DT": "South Korea",
+    "VU": "India", "AT": "India", "VT": "India", "VW": "India",
+    "VR": "Hong Kong", "VR2": "Hong Kong",
+    "XX": "China", "BY": "China", "B": "China",
+    "VK": "Australia", "VH": "Australia", "VI": "Australia", "VJ": "Australia",
+    "ZL": "New Zealand", "ZK": "New Zealand", "ZM": "New Zealand",
+    "YB": "Indonesia", "YC": "Indonesia", "YD": "Indonesia", "YE": "Indonesia", "YF": "Indonesia", "YG": "Indonesia", "YH": "Indonesia",
+    "HS": "Thailand", "E2": "Thailand",
+    "9V": "Singapore", "9M2": "West Malaysia", "9M6": "East Malaysia",
+    "DU": "Philippines", "DV": "Philippines", "DW": "Philippines", "DX": "Philippines", "DY": "Philippines", "DZ": "Philippines",
+    
+    # Africa
+    "ZS": "South Africa", "ZR": "South Africa", "ZT": "South Africa", "ZU": "South Africa",
+    "SU": "Egypt", "SS": "Egypt",
+    "CN": "Morocco", "5C": "Morocco",
+    "7X": "Algeria",
+    "3V": "Tunisia",
+    "5A": "Libya",
+    "ST": "Sudan",
+    "ET": "Ethiopia",
+    "5Z": "Kenya",
+    "5H": "Tanzania",
+    "5X": "Uganda",
+    "9X": "Rwanda",
+    "9U": "Burundi",
+    "TL": "Central African Republic",
+    "TT": "Chad",
+    "TY": "Benin",
+    "5V": "Togo",
+    "9G": "Ghana",
+    "9Q": "Democratic Republic of the Congo",
+    "TN": "Republic of the Congo",
+    "TR": "Gabon",
+    "3C": "Equatorial Guinea",
+    "D2": "Angola",
+    "V5": "Namibia",
+    "A2": "Botswana",
+    "7P": "Lesotho",
+    "3DA": "Swaziland",
+    "V9": "Brunei",
+    
+    # Oceania
+    "YJ": "Vanuatu", "YK": "Syria", "T3": "Kiribati", "T2": "Tuvalu", "5W": "Samoa", "3D2": "Fiji", "E5": "Cook Islands",
+    "FK": "New Caledonia", "FO": "French Polynesia", "FW": "Wallis and Futuna",
+    "P2": "Papua New Guinea", "P29": "Papua New Guinea",
+    "YB": "Indonesia",
+    
+    # South America  
+    "PY": "Brazil", "PP": "Brazil", "PQ": "Brazil", "PR": "Brazil", "PS": "Brazil", "PT": "Brazil", "PU": "Brazil", "PV": "Brazil", "PW": "Brazil", "PX": "Brazil", "ZV": "Brazil", "ZW": "Brazil", "ZX": "Brazil", "ZY": "Brazil", "ZZ": "Brazil",
+    "LU": "Argentina", "AY": "Argentina", "AZ": "Argentina", "L2": "Argentina", "L3": "Argentina", "L4": "Argentina", "L5": "Argentina", "L6": "Argentina", "L7": "Argentina", "L8": "Argentina", "L9": "Argentina", "LO": "Argentina", "LP": "Argentina", "LQ": "Argentina", "LR": "Argentina", "LS": "Argentina", "LT": "Argentina", "LV": "Argentina", "LW": "Argentina",
+    "CE": "Chile", "CA": "Chile", "CB": "Chile", "CC": "Chile", "CD": "Chile", "CF": "Chile", "CG": "Chile", "CH": "Chile", "CI": "Chile", "CJ": "Chile", "CK": "Chile", "CL": "Chile", "CM": "Chile", "CN": "Chile", "CO": "Chile", "CP": "Chile", "CQ": "Chile", "CR": "Chile", "CS": "Chile", "CT": "Chile", "CU": "Chile", "CV": "Chile", "CW": "Chile", "CX": "Chile", "CY": "Chile", "CZ": "Chile",
+    "CP": "Bolivia", "C7": "Bolivia",
+    "OA": "Peru", "OB": "Peru", "OC": "Peru", "4T": "Peru",
+    "HC": "Ecuador", "HD": "Ecuador", "HE": "Ecuador", "HF": "Ecuador", "HG": "Ecuador", "HH": "Ecuador", "HI": "Ecuador",
+    "HJ": "Colombia", "HK": "Colombia", "5J": "Colombia", "5K": "Colombia",
+    "YV": "Venezuela", "YW": "Venezuela", "YX": "Venezuela", "YY": "Venezuela", "4M": "Venezuela",
+    "PZ": "Suriname",
+    "8R": "Guyana",
+    "PJ": "Netherlands Antilles",
+    "FY": "French Guiana",
+    "PY0F": "Fernando de Noronha", "PY0S": "St. Peter and St. Paul Rocks", "PY0T": "Trindade and Martim Vaz",
+}
 
 ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+([A-Z0-9/]+)\s+(?P<call>[A-Z0-9/]+)")
 
@@ -670,6 +793,175 @@ def calculate_canadian_maple_awards(qsos: Sequence[QSO], members: Sequence[Membe
     return awards
 
 
+def get_dxcc_country(call: str) -> str | None:
+    """
+    Extract DXCC country from call sign.
+    
+    Args:
+        call: Amateur radio call sign
+        
+    Returns:
+        DXCC country name or None if not recognized
+    """
+    if not call:
+        return None
+    
+    call = call.upper().strip()
+    
+    # Handle portable operations (remove /suffix)
+    base_call = call.split('/')[0]
+    
+    # Check for exact prefix matches first (longest first)
+    sorted_prefixes = sorted(DXCC_PREFIXES.keys(), key=len, reverse=True)
+    
+    for prefix in sorted_prefixes:
+        if base_call.startswith(prefix):
+            return DXCC_PREFIXES[prefix]
+    
+    return None
+
+
+def calculate_dx_awards(qsos: Sequence[QSO], members: Sequence[Member], home_country: str = "United States") -> List[DXAward]:
+    """
+    Calculate SKCC DX Award progress for both DXQ (QSO-based) and DXC (Country-based).
+    
+    Rules:
+    - DXQ: Count unique QSOs with SKCC members from different countries
+    - DXC: Count unique DXCC countries worked (one per country)
+    - DXQ valid after June 14, 2009
+    - DXC valid after December 19, 2009
+    - Both parties must be SKCC members at time of QSO
+    """
+    # Build member lookup
+    member_by_call = {}
+    for member in members:
+        for alias in generate_call_aliases(member.call):
+            member_by_call.setdefault(alias, member)
+    
+    # Track DX QSOs and countries
+    dxq_contacts = []  # List of (country, member_number, is_qrp) tuples
+    dxc_countries = set()  # Set of unique countries
+    
+    # Track QRP separately
+    dxq_qrp_contacts = []
+    dxc_qrp_countries = set()
+    
+    for qso in qsos:
+        if not qso.call:
+            continue
+            
+        # Must be SKCC member
+        normalized_call = normalize_call(qso.call) if qso.call else ""
+        member = member_by_call.get(normalized_call or "")
+        if not member:
+            continue
+            
+        # Get country from call sign
+        country = get_dxcc_country(qso.call)
+        if not country or country == home_country:
+            continue  # Skip same country or unrecognized
+            
+        # Date validation
+        if qso.date:
+            qso_date = qso.date
+            
+            # DXQ valid after June 14, 2009 (20090614)
+            # DXC valid after December 19, 2009 (20091219)
+            if qso_date < "20090614":
+                continue  # Before any DX award start date
+        
+        # Check if QRP (5W or less)
+        is_qrp = False
+        if hasattr(qso, 'tx_pwr') and qso.tx_pwr:
+            try:
+                power = float(qso.tx_pwr)
+                is_qrp = power <= 5.0
+            except (ValueError, TypeError):
+                pass
+        # Also check for QRP indicator in comment or mode
+        if (hasattr(qso, 'comment') and qso.comment and 'QRP' in qso.comment.upper()) or \
+           (qso.mode and 'QRP' in qso.mode.upper()):
+            is_qrp = True
+            
+        # For DXQ: track individual QSOs (country, member number)
+        if qso.date and qso.date >= "20090614":
+            contact_key = (country, member.number)
+            if contact_key not in [c[:2] for c in dxq_contacts]:
+                dxq_contacts.append((country, member.number, is_qrp))
+                if is_qrp:
+                    dxq_qrp_contacts.append((country, member.number, is_qrp))
+        
+        # For DXC: track unique countries
+        if qso.date and qso.date >= "20091219":
+            dxc_countries.add(country)
+            if is_qrp:
+                dxc_qrp_countries.add(country)
+    
+    awards = []
+    
+    # DXQ Awards (QSO-based)
+    dxq_count = len(dxq_contacts)
+    dxq_qrp_count = len(dxq_qrp_contacts)
+    dxq_countries = list(set(contact[0] for contact in dxq_contacts))
+    dxq_qrp_countries = list(set(contact[0] for contact in dxq_qrp_contacts))
+    
+    for threshold in DX_AWARD_THRESHOLDS:
+        # Regular DXQ award
+        awards.append(DXAward(
+            name=f"DXQ-{threshold}",
+            award_type="DXQ",
+            threshold=threshold,
+            current_count=dxq_count,
+            achieved=dxq_count >= threshold,
+            countries_worked=dxq_countries,
+            qrp_qualified=False,
+            start_date="20090614"
+        ))
+        
+        # QRP DXQ award
+        awards.append(DXAward(
+            name=f"DXQ-{threshold} QRP",
+            award_type="DXQ",
+            threshold=threshold,
+            current_count=dxq_qrp_count,
+            achieved=dxq_qrp_count >= threshold,
+            countries_worked=dxq_qrp_countries,
+            qrp_qualified=True,
+            start_date="20090614"
+        ))
+    
+    # DXC Awards (Country-based)
+    dxc_count = len(dxc_countries)
+    dxc_qrp_count = len(dxc_qrp_countries)
+    
+    for threshold in DX_AWARD_THRESHOLDS:
+        # Regular DXC award
+        awards.append(DXAward(
+            name=f"DXC-{threshold}",
+            award_type="DXC",
+            threshold=threshold,
+            current_count=dxc_count,
+            achieved=dxc_count >= threshold,
+            countries_worked=sorted(list(dxc_countries)),
+            qrp_qualified=False,
+            start_date="20091219"
+        ))
+        
+        # QRP DXC award
+        awards.append(DXAward(
+            name=f"DXC-{threshold} QRP",
+            award_type="DXC",
+            threshold=threshold,
+            current_count=dxc_qrp_count,
+            achieved=dxc_qrp_count >= threshold,
+            countries_worked=sorted(list(dxc_qrp_countries)),
+            qrp_qualified=True,
+            start_date="20091219"
+        ))
+    
+    return awards
+
+
 def calculate_awards(
     qsos: Sequence[QSO],
     members: Sequence[Member],
@@ -1033,6 +1325,17 @@ def calculate_awards(
 
     # Calculate Canadian Maple Awards
     canadian_maple_awards = calculate_canadian_maple_awards(filtered_qsos, members)
+    
+    # Calculate DX Awards (detect home country from first QSO or default to US)
+    home_country = "United States"  # Default
+    if filtered_qsos:
+        # Try to detect home country from first QSO
+        first_call = filtered_qsos[0].call
+        if first_call:
+            first_qso_country = get_dxcc_country(first_call)
+            if first_qso_country:
+                home_country = first_qso_country
+    dx_awards = calculate_dx_awards(filtered_qsos, members, home_country)
 
     return AwardCheckResult(
         unique_members_worked=unique_count,
@@ -1044,4 +1347,5 @@ def calculate_awards(
         thresholds_used=list(use_thresholds),
         total_cw_qsos=len(filtered_qsos),
         canadian_maple_awards=canadian_maple_awards,
+        dx_awards=dx_awards,
     )
