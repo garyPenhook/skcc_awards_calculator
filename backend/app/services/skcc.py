@@ -96,6 +96,16 @@ class PFXAward:
     band: str | None  # Specific band for endorsements, None for overall award
 
 @dataclass
+class TripleKeyAward:
+    name: str
+    key_type: str  # "straight", "bug", "sideswiper"
+    threshold: int  # Always 100 for each key type
+    current_count: int  # Unique SKCC members worked with this key type
+    achieved: bool
+    members_worked: List[str]  # List of unique member calls
+    percentage: float  # Progress percentage
+
+@dataclass
 class AwardCheckResult:
     unique_members_worked: int
     awards: List[AwardProgress]
@@ -103,6 +113,7 @@ class AwardCheckResult:
     canadian_maple_awards: List[CanadianMapleAward]  # New field
     dx_awards: List[DXAward]  # New field for DX Awards
     pfx_awards: List[PFXAward]  # New field for PFX Awards
+    triple_key_awards: List[TripleKeyAward]  # New field for Triple Key Awards
     total_qsos: int
     matched_qsos: int
     unmatched_calls: List[str]
@@ -1147,6 +1158,150 @@ def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
     return awards
 
 
+def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[TripleKeyAward]:
+    """
+    Calculate SKCC Triple Key Award progress.
+    
+    Rules:
+    - Contact 300 different SKCC members total:
+      - 100 using straight key
+      - 100 using bug/semi-automatic
+      - 100 using sideswiper/cootie
+    - Valid after November 10, 2018
+    - Both parties must be SKCC members at time of QSO
+    - Key type must be specified in QSO record
+    """
+    # Build member lookup with all aliases
+    member_by_call = {}
+    for member in members:
+        for alias in generate_call_aliases(member.call):
+            member_by_call.setdefault(alias, member)
+    
+    # Track unique members worked with each key type
+    straight_key_members = set()  # Unique SKCC member calls
+    bug_members = set()
+    sideswiper_members = set()
+    
+    # Define key type mappings
+    STRAIGHT_KEY_TYPES = {
+        "SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY", "HAND KEY", "HANDKEY"
+    }
+    BUG_TYPES = {
+        "BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC", "VIBROPLEX"
+    }
+    SIDESWIPER_TYPES = {
+        "SS", "SIDESWIPER", "SIDE SWIPER", "COOTIE", "COOTIES"
+    }
+    
+    for qso in qsos:
+        if not qso.call:
+            continue
+            
+        # Must be SKCC member
+        normalized_call = normalize_call(qso.call)
+        member = member_by_call.get(normalized_call)
+        if not member:
+            continue
+            
+        # Valid after November 10, 2018
+        if qso.date and qso.date < "20181110":
+            continue
+            
+        # Must have QSO date to verify member status
+        if not qso.date:
+            continue
+            
+        # Check if member was valid at QSO time
+        if member.join_date and qso.date < member.join_date:
+            continue
+            
+        # Extract key type from various possible fields
+        key_type = None
+        
+        # Check comment field for key type
+        if qso.comment:
+            comment_upper = qso.comment.upper().strip()
+            if any(kt in comment_upper for kt in STRAIGHT_KEY_TYPES):
+                key_type = "straight"
+            elif any(kt in comment_upper for kt in BUG_TYPES):
+                key_type = "bug"
+            elif any(kt in comment_upper for kt in SIDESWIPER_TYPES):
+                key_type = "sideswiper"
+                
+        # Check dedicated key type field if available
+        if not key_type and qso.key_type:
+            key_upper = qso.key_type.upper().strip()
+            if any(kt in key_upper for kt in STRAIGHT_KEY_TYPES):
+                key_type = "straight"
+            elif any(kt in key_upper for kt in BUG_TYPES):
+                key_type = "bug"
+            elif any(kt in key_upper for kt in SIDESWIPER_TYPES):
+                key_type = "sideswiper"
+        
+        # Add to appropriate set if key type identified
+        if key_type == "straight":
+            straight_key_members.add(normalized_call)
+        elif key_type == "bug":
+            bug_members.add(normalized_call)
+        elif key_type == "sideswiper":
+            sideswiper_members.add(normalized_call)
+    
+    # Create award objects
+    awards = []
+    
+    # Straight Key Award
+    sk_count = len(straight_key_members)
+    awards.append(TripleKeyAward(
+        name="Triple Key - Straight Key",
+        key_type="straight",
+        threshold=100,
+        current_count=sk_count,
+        achieved=sk_count >= 100,
+        members_worked=sorted(list(straight_key_members)),
+        percentage=(sk_count / 100.0) * 100
+    ))
+    
+    # Bug Award
+    bug_count = len(bug_members)
+    awards.append(TripleKeyAward(
+        name="Triple Key - Bug",
+        key_type="bug",
+        threshold=100,
+        current_count=bug_count,
+        achieved=bug_count >= 100,
+        members_worked=sorted(list(bug_members)),
+        percentage=(bug_count / 100.0) * 100
+    ))
+    
+    # Sideswiper Award
+    ss_count = len(sideswiper_members)
+    awards.append(TripleKeyAward(
+        name="Triple Key - Sideswiper",
+        key_type="sideswiper",
+        threshold=100,
+        current_count=ss_count,
+        achieved=ss_count >= 100,
+        members_worked=sorted(list(sideswiper_members)),
+        percentage=(ss_count / 100.0) * 100
+    ))
+    
+    # Overall Triple Key Award (requires all three components)
+    all_achieved = sk_count >= 100 and bug_count >= 100 and ss_count >= 100
+    total_unique = len(straight_key_members | bug_members | sideswiper_members)
+    
+    awards.append(TripleKeyAward(
+        name="Triple Key Award",
+        key_type="overall",
+        threshold=300,
+        current_count=total_unique,
+        achieved=all_achieved,
+        members_worked=sorted(list(straight_key_members | bug_members | sideswiper_members)),
+        percentage=(total_unique / 300.0) * 100
+    ))
+    
+    return awards
+
+
 def calculate_awards(
     qsos: Sequence[QSO],
     members: Sequence[Member],
@@ -1524,6 +1679,9 @@ def calculate_awards(
     
     # Calculate PFX Awards
     pfx_awards = calculate_pfx_awards(filtered_qsos, members)
+    
+    # Calculate Triple Key Awards
+    triple_key_awards = calculate_triple_key_awards(filtered_qsos, members)
 
     return AwardCheckResult(
         unique_members_worked=unique_count,
@@ -1537,4 +1695,5 @@ def calculate_awards(
         canadian_maple_awards=canadian_maple_awards,
         dx_awards=dx_awards,
         pfx_awards=pfx_awards,
+        triple_key_awards=triple_key_awards,
     )

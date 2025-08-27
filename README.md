@@ -69,6 +69,15 @@ The program correctly implements these SKCC award requirements:
    - **Band Endorsements**: Available for each level on individual bands
    - Valid after January 1, 2013; both parties must be SKCC members at time of QSO
 
+8. **Triple Key Award**:
+   - **Requirement**: Contact 300 different SKCC members using all three key types:
+     - 100 contacts using straight key
+     - 100 contacts using bug/semi-automatic
+     - 100 contacts using sideswiper/cootie
+   - **Key Type Detection**: Automatically detects from ADIF key_type field or comment field
+   - **Exchange**: Must mention key type used (e.g., "SK", "BUG", "SS" abbreviations accepted)
+   - Valid after November 10, 2018; both parties must be SKCC members at time of QSO
+
 ## Requirements
 
 - **Windows 10/11**
@@ -117,7 +126,7 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, and **PFX Awards** tabs
+5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, and **Triple Key** tabs
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
@@ -125,6 +134,7 @@ python scripts\gui.py
 - **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
 - **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
 - **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
+- **Triple Key**: Shows progress toward Triple Key Award using straight key, bug, and sideswiper
 
 ### Option 2: Command Line Interface
 ```cmd
