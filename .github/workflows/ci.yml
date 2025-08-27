@@ -31,7 +31,7 @@ jobs:
           print('Testing core SKCC module imports...')
           
           try:
-              from services.skcc import parse_adif, calculate_awards, fetch_roster_live
+              from services.skcc import parse_adif, calculate_awards, fetch_member_roster
               print('✓ Core SKCC functions import successfully')
           except ImportError as e:
               print(f'✗ Import error: {e}')
@@ -84,9 +84,9 @@ jobs:
           ]
           
           qsos = [
-              QSO(call='W1TEST', date='20250101', skcc='123'),
-              QSO(call='W2TEST', date='20250102', skcc='456C'),
-              QSO(call='W3TEST', date='20250103', skcc='789T')
+              QSO(call='W1TEST', band='20M', mode='CW', date='20250101', skcc='123'),
+              QSO(call='W2TEST', band='40M', mode='CW', date='20250102', skcc='456C'),
+              QSO(call='W3TEST', band='15M', mode='CW', date='20250103', skcc='789T')
           ]
           
           # Test calculation
