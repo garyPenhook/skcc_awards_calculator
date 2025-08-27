@@ -85,12 +85,24 @@ class DXAward:
     start_date: str  # "20090614" for DXQ, "20091219" for DXC
 
 @dataclass
+class PFXAward:
+    name: str
+    level: int  # 1, 2, 3, ..., 10, 15, 20, 25, etc.
+    threshold: int  # 500000, 1000000, 1500000, etc.
+    current_score: int  # Sum of SKCC numbers for unique prefixes
+    achieved: bool
+    unique_prefixes: int  # Count of unique prefixes worked
+    prefixes_worked: List[str]  # List of unique prefixes
+    band: str | None  # Specific band for endorsements, None for overall award
+
+@dataclass
 class AwardCheckResult:
     unique_members_worked: int
     awards: List[AwardProgress]
     endorsements: List[AwardEndorsement]
     canadian_maple_awards: List[CanadianMapleAward]  # New field
     dx_awards: List[DXAward]  # New field for DX Awards
+    pfx_awards: List[PFXAward]  # New field for PFX Awards
     total_qsos: int
     matched_qsos: int
     unmatched_calls: List[str]
@@ -962,6 +974,179 @@ def calculate_dx_awards(qsos: Sequence[QSO], members: Sequence[Member], home_cou
     return awards
 
 
+def extract_prefix(call: str) -> str | None:
+    """
+    Extract call sign prefix according to SKCC PFX Award rules.
+    
+    The prefix consists of letters and numbers up to and including 
+    the last number on the left part of the call sign.
+    Prefixes and suffixes separated by "/" are ignored.
+    
+    Examples:
+    - AC2C -> AC2
+    - N6WK -> N6  
+    - DU3/W5LFA -> W5
+    - 2D0YLX -> 2D0
+    - S51AF -> S51
+    - K5ZMD/7 -> K5
+    - W4/IB4DX -> IB4
+    
+    Args:
+        call: Amateur radio call sign
+        
+    Returns:
+        Prefix string or None if invalid
+    """
+    if not call:
+        return None
+    
+    call = call.upper().strip()
+    
+    # Remove portable indicators (keep base call)
+    base_call = call.split('/')[0]
+    
+    # Handle special case like W4/IB4DX where prefix is after the /
+    if '/' in call:
+        parts = call.split('/')
+        if len(parts) >= 2:
+            # If the first part looks like a location (W4, VE7, etc.) and second is the call
+            first_part = parts[0]
+            second_part = parts[1]
+            
+            # Check if first part is a simple area designation (2-3 chars with digit)
+            if len(first_part) <= 3 and any(c.isdigit() for c in first_part):
+                base_call = second_part  # Use the part after /
+    
+    # Find the last digit in the base call
+    last_digit_pos = -1
+    for i, char in enumerate(base_call):
+        if char.isdigit():
+            last_digit_pos = i
+    
+    if last_digit_pos == -1:
+        return None  # No digit found, invalid call
+    
+    # Prefix is everything up to and including the last digit
+    prefix = base_call[:last_digit_pos + 1]
+    
+    return prefix if prefix else None
+
+
+def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[PFXAward]:
+    """
+    Calculate SKCC PFX Award progress based on unique prefixes and SKCC number sums.
+    
+    Rules:
+    - Collect unique call sign prefixes from SKCC member contacts
+    - Score = sum of SKCC numbers for each unique prefix
+    - Px1 award at 500,000 points, then every 500,000 up to Px10
+    - Beyond Px10: Px15, Px20, Px25, etc. (increments of 5)
+    - Valid after January 1, 2013
+    - Both parties must be SKCC members at time of QSO
+    - Band endorsements available for each level
+    """
+    # Build member lookup with all aliases
+    member_by_call = {}
+    for member in members:
+        for alias in generate_call_aliases(member.call):
+            member_by_call.setdefault(alias, member)
+    
+    # Track prefixes and their associated SKCC numbers
+    prefix_scores = {}  # prefix -> set of SKCC numbers worked
+    prefix_scores_by_band = {}  # band -> {prefix -> set of SKCC numbers}
+    
+    for qso in qsos:
+        if not qso.call or not qso.band:
+            continue
+            
+        # Must be SKCC member
+        normalized_call = normalize_call(qso.call) if qso.call else ""
+        member = member_by_call.get(normalized_call or "")
+        if not member:
+            continue
+            
+        # Date validation - only contacts after Jan 1, 2013
+        if qso.date and qso.date < "20130101":
+            continue
+            
+        # Extract prefix
+        prefix = extract_prefix(qso.call)
+        if not prefix:
+            continue
+            
+        # Get member number
+        member_number = member.number
+        
+        # Track for overall award
+        if prefix not in prefix_scores:
+            prefix_scores[prefix] = set()
+        prefix_scores[prefix].add(member_number)
+        
+        # Track by band for endorsements
+        band = qso.band.upper()
+        if band not in prefix_scores_by_band:
+            prefix_scores_by_band[band] = {}
+        if prefix not in prefix_scores_by_band[band]:
+            prefix_scores_by_band[band][prefix] = set()
+        prefix_scores_by_band[band][prefix].add(member_number)
+    
+    awards = []
+    
+    # Calculate overall PFX awards
+    total_score = sum(max(numbers) for numbers in prefix_scores.values())
+    unique_prefixes = len(prefix_scores)
+    prefixes_worked = sorted(list(prefix_scores.keys()))
+    
+    # Define PFX award levels
+    pfx_levels = []
+    # Px1 through Px10 (every 500,000)
+    for i in range(1, 11):
+        pfx_levels.append((i, i * 500000))
+    # Beyond Px10: increments of 5
+    for i in range(15, 101, 5):  # Px15, Px20, Px25, ... Px100
+        pfx_levels.append((i, i * 500000))
+    
+    for level, threshold in pfx_levels:
+        awards.append(PFXAward(
+            name=f"PFX Px{level}",
+            level=level,
+            threshold=threshold,
+            current_score=total_score,
+            achieved=total_score >= threshold,
+            unique_prefixes=unique_prefixes,
+            prefixes_worked=prefixes_worked,
+            band=None
+        ))
+    
+    # Calculate band endorsements for each achieved level
+    for band, band_prefixes in prefix_scores_by_band.items():
+        if not band_prefixes:
+            continue
+            
+        band_score = sum(max(numbers) for numbers in band_prefixes.values())
+        band_unique_prefixes = len(band_prefixes)
+        band_prefixes_worked = sorted(list(band_prefixes.keys()))
+        
+        for level, threshold in pfx_levels:
+            # Only create band endorsements for levels that are achieved overall
+            overall_achieved = total_score >= threshold
+            band_achieved = band_score >= threshold
+            
+            if overall_achieved or band_achieved:  # Show if either overall or band is achieved
+                awards.append(PFXAward(
+                    name=f"PFX Px{level}",
+                    level=level,
+                    threshold=threshold,
+                    current_score=band_score,
+                    achieved=band_achieved,
+                    unique_prefixes=band_unique_prefixes,
+                    prefixes_worked=band_prefixes_worked,
+                    band=band
+                ))
+    
+    return awards
+
+
 def calculate_awards(
     qsos: Sequence[QSO],
     members: Sequence[Member],
@@ -1336,6 +1521,9 @@ def calculate_awards(
             if first_qso_country:
                 home_country = first_qso_country
     dx_awards = calculate_dx_awards(filtered_qsos, members, home_country)
+    
+    # Calculate PFX Awards
+    pfx_awards = calculate_pfx_awards(filtered_qsos, members)
 
     return AwardCheckResult(
         unique_members_worked=unique_count,
@@ -1348,4 +1536,5 @@ def calculate_awards(
         total_cw_qsos=len(filtered_qsos),
         canadian_maple_awards=canadian_maple_awards,
         dx_awards=dx_awards,
+        pfx_awards=pfx_awards,
     )

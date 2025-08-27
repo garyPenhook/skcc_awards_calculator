@@ -62,6 +62,13 @@ The program correctly implements these SKCC award requirements:
    - DXQ valid after June 14, 2009; DXC valid after December 19, 2009
    - Both parties must be SKCC members at time of QSO
 
+7. **PFX Awards**:
+   - **Scoring**: Each unique call sign prefix scores points equal to the highest SKCC number worked for that prefix
+   - **Award Levels**: Px1 (500K points), Px2 (1M), Px3 (1.5M), ..., Px10 (5M), then Px15, Px20, etc.
+   - **Prefix Rules**: Standard ITU prefixes (W1, N6, VE1, JA1), portable uses base call, split calls use part after "/"
+   - **Band Endorsements**: Available for each level on individual bands
+   - Valid after January 1, 2013; both parties must be SKCC members at time of QSO
+
 ## Requirements
 
 - **Windows 10/11**
@@ -110,13 +117,14 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, and **DX Awards** tabs
+5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, and **PFX Awards** tabs
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
 - **Endorsements**: Shows band and mode endorsement progress  
 - **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
 - **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
+- **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
 
 ### Option 2: Command Line Interface
 ```cmd

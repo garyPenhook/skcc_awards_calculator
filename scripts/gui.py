@@ -159,6 +159,21 @@ class AwardsGUI:
             self.dx_tree.column(col, width=w, anchor=tk.CENTER)
         self.dx_tree.pack(fill=tk.BOTH, expand=True)
 
+        # PFX Awards tab
+        pfx_tab = ttk.Frame(notebook)
+        notebook.add(pfx_tab, text="PFX Awards")
+        self.pfx_tree = ttk.Treeview(pfx_tab, columns=("level", "band", "score", "prefixes", "achieved"), show="headings")
+        for col, txt, w in [
+            ("level", "Level", 60),
+            ("band", "Band", 60),
+            ("score", "Score", 100),
+            ("prefixes", "Prefixes", 80),
+            ("achieved", "Achieved", 80),
+        ]:
+            self.pfx_tree.heading(col, text=txt)
+            self.pfx_tree.column(col, width=w, anchor=tk.CENTER)
+        self.pfx_tree.pack(fill=tk.BOTH, expand=True)
+
         # Unique count
         bottom = ttk.Frame(self.root, padding=4)
         bottom.pack(fill=tk.X)
@@ -278,7 +293,7 @@ class AwardsGUI:
         elif kind == "result":
             result = item[1]
             # Update awards tree
-            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree):
+            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree, self.pfx_tree):
                 for iid in tree.get_children():
                     tree.delete(iid)
             for a in result.awards:
@@ -319,6 +334,20 @@ class AwardsGUI:
                                       values=(type_text, threshold_text, current_text, achieved_text),
                                       text=dx.name,
                                       tags=("ach" if dx.achieved else ""))
+            
+            # Display PFX Awards
+            for pfx in result.pfx_awards:
+                if pfx.current_score > 0 or pfx.achieved:  # Only show if there's progress
+                    level_text = f"Px{pfx.level}"
+                    band_text = pfx.band if pfx.band else "Overall"
+                    score_text = f"{pfx.current_score:,}/{pfx.threshold:,}"
+                    prefixes_text = str(pfx.unique_prefixes)
+                    achieved_text = "Yes" if pfx.achieved else "No"
+                    
+                    self.pfx_tree.insert("", tk.END,
+                                       values=(level_text, band_text, score_text, prefixes_text, achieved_text),
+                                       text=pfx.name,
+                                       tags=("ach" if pfx.achieved else ""))
             
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"
