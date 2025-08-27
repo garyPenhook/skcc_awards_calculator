@@ -117,6 +117,17 @@ class RagChewAward:
     band: str | None  # Specific band for endorsements, None for overall award
 
 @dataclass
+class WACAward:
+    name: str
+    award_type: str  # "WAC" (overall), "WAC-QRP", or band endorsement
+    required_continents: int  # Always 6
+    current_continents: int  # Number of continents worked
+    achieved: bool
+    continents_worked: List[str]  # List of continents worked
+    qrp_qualified: bool  # True if all QSOs were QRP
+    band: str | None  # Specific band for endorsements, None for overall award
+
+@dataclass
 class AwardCheckResult:
     unique_members_worked: int
     awards: List[AwardProgress]
@@ -126,6 +137,7 @@ class AwardCheckResult:
     pfx_awards: List[PFXAward]  # New field for PFX Awards
     triple_key_awards: List[TripleKeyAward]  # New field for Triple Key Awards
     rag_chew_awards: List[RagChewAward]  # New field for Rag Chew Awards
+    wac_awards: List[WACAward]  # New field for WAC Awards
     total_qsos: int
     matched_qsos: int
     unmatched_calls: List[str]
@@ -297,6 +309,270 @@ DXCC_PREFIXES = {
     "FY": "French Guiana",
     "PY0F": "Fernando de Noronha", "PY0S": "St. Peter and St. Paul Rocks", "PY0T": "Trindade and Martim Vaz",
 }
+
+# Continent mapping for DXCC countries
+COUNTRY_TO_CONTINENT = {
+    # North America
+    "United States": "NA",
+    "Canada": "NA", 
+    "Mexico": "NA",
+    "Alaska": "NA",
+    "Hawaii": "NA",
+    "Bahamas": "NA",
+    "Barbados": "NA",
+    "Belize": "NA",
+    "Bermuda": "NA",
+    "Costa Rica": "NA",
+    "Cuba": "NA",
+    "Dominican Republic": "NA",
+    "El Salvador": "NA",
+    "Guatemala": "NA",
+    "Haiti": "NA",
+    "Honduras": "NA",
+    "Jamaica": "NA",
+    "Nicaragua": "NA",
+    "Panama": "NA",
+    "Trinidad and Tobago": "NA",
+    "Cayman Islands": "NA",
+    "Puerto Rico": "NA",
+    "US Virgin Islands": "NA",
+    "British Virgin Islands": "NA",
+    
+    # South America
+    "Argentina": "SA",
+    "Bolivia": "SA",
+    "Brazil": "SA",
+    "Chile": "SA",
+    "Colombia": "SA",
+    "Ecuador": "SA",
+    "French Guiana": "SA",
+    "Guyana": "SA",
+    "Paraguay": "SA",
+    "Peru": "SA",
+    "Suriname": "SA",
+    "Uruguay": "SA",
+    "Venezuela": "SA",
+    "Fernando de Noronha": "SA",
+    "St. Peter and St. Paul Rocks": "SA",
+    "Trindade and Martim Vaz": "SA",
+    "Netherlands Antilles": "SA",
+    
+    # Europe
+    "Albania": "EU",
+    "Andorra": "EU",
+    "Armenia": "EU",
+    "Austria": "EU",
+    "Azerbaijan": "EU",
+    "Belarus": "EU",
+    "Belgium": "EU",
+    "Bosnia-Herzegovina": "EU",
+    "Bulgaria": "EU",
+    "Croatia": "EU",
+    "Cyprus": "EU",
+    "Czech Republic": "EU",
+    "Denmark": "EU",
+    "Estonia": "EU",
+    "Finland": "EU",
+    "France": "EU",
+    "Georgia": "EU",
+    "Germany": "EU",
+    "Greece": "EU",
+    "Hungary": "EU",
+    "Iceland": "EU",
+    "Ireland": "EU",
+    "Italy": "EU",
+    "Latvia": "EU",
+    "Liechtenstein": "EU",
+    "Lithuania": "EU",
+    "Luxembourg": "EU",
+    "Malta": "EU",
+    "Moldova": "EU",
+    "Monaco": "EU",
+    "Montenegro": "EU",
+    "Netherlands": "EU",
+    "North Macedonia": "EU",
+    "Norway": "EU",
+    "Poland": "EU",
+    "Portugal": "EU",
+    "Romania": "EU",
+    "European Russia": "EU",
+    "San Marino": "EU",
+    "Serbia": "EU",
+    "Slovak Republic": "EU",
+    "Slovenia": "EU",
+    "Spain": "EU",
+    "Sweden": "EU",
+    "Switzerland": "EU",
+    "Turkey": "EU",
+    "Ukraine": "EU",
+    "England": "EU",
+    "Scotland": "EU",
+    "Wales": "EU",
+    "Northern Ireland": "EU",
+    "Faroe Islands": "EU",
+    "Gibraltar": "EU",
+    "Guernsey": "EU",
+    "Isle of Man": "EU",
+    "Jersey": "EU",
+    "Vatican": "EU",
+    
+    # Africa
+    "Algeria": "AF",
+    "Angola": "AF",
+    "Benin": "AF",
+    "Botswana": "AF",
+    "Burkina Faso": "AF",
+    "Burundi": "AF",
+    "Cameroon": "AF",
+    "Cape Verde": "AF",
+    "Central African Republic": "AF",
+    "Chad": "AF",
+    "Comoros": "AF",
+    "Democratic Republic of the Congo": "AF",
+    "Republic of the Congo": "AF",
+    "Djibouti": "AF",
+    "Egypt": "AF",
+    "Equatorial Guinea": "AF",
+    "Eritrea": "AF",
+    "Ethiopia": "AF",
+    "Gabon": "AF",
+    "Gambia": "AF",
+    "Ghana": "AF",
+    "Guinea": "AF",
+    "Guinea-Bissau": "AF",
+    "Ivory Coast": "AF",
+    "Kenya": "AF",
+    "Lesotho": "AF",
+    "Liberia": "AF",
+    "Libya": "AF",
+    "Madagascar": "AF",
+    "Malawi": "AF",
+    "Mali": "AF",
+    "Mauritania": "AF",
+    "Mauritius": "AF",
+    "Morocco": "AF",
+    "Mozambique": "AF",
+    "Namibia": "AF",
+    "Niger": "AF",
+    "Nigeria": "AF",
+    "Rwanda": "AF",
+    "Sao Tome and Principe": "AF",
+    "Senegal": "AF",
+    "Seychelles": "AF",
+    "Sierra Leone": "AF",
+    "Somalia": "AF",
+    "South Africa": "AF",
+    "South Sudan": "AF",
+    "Sudan": "AF",
+    "Swaziland": "AF",
+    "Tanzania": "AF",
+    "Togo": "AF",
+    "Tunisia": "AF",
+    "Uganda": "AF",
+    "Zambia": "AF",
+    "Zimbabwe": "AF",
+    
+    # Asia
+    "Afghanistan": "AS",
+    "Bahrain": "AS",
+    "Bangladesh": "AS",
+    "Bhutan": "AS",
+    "Brunei": "AS",
+    "Cambodia": "AS",
+    "China": "AS",
+    "Hong Kong": "AS",
+    "India": "AS",
+    "Indonesia": "AS",
+    "Iran": "AS",
+    "Iraq": "AS",
+    "Israel": "AS",
+    "Japan": "AS",
+    "Jordan": "AS",
+    "Kazakhstan": "AS",
+    "Kuwait": "AS",
+    "Kyrgyzstan": "AS",
+    "Laos": "AS",
+    "Lebanon": "AS",
+    "Macao": "AS",
+    "Malaysia": "AS",
+    "West Malaysia": "AS",
+    "East Malaysia": "AS",
+    "Maldives": "AS",
+    "Mongolia": "AS",
+    "Myanmar": "AS",
+    "Nepal": "AS",
+    "North Korea": "AS",
+    "Oman": "AS",
+    "Pakistan": "AS",
+    "Palestine": "AS",
+    "Philippines": "AS",
+    "Qatar": "AS",
+    "Saudi Arabia": "AS",
+    "Singapore": "AS",
+    "South Korea": "AS",
+    "Sri Lanka": "AS",
+    "Syria": "AS",
+    "Taiwan": "AS",
+    "Tajikistan": "AS",
+    "Thailand": "AS",
+    "Timor-Leste": "AS",
+    "Turkmenistan": "AS",
+    "United Arab Emirates": "AS",
+    "Uzbekistan": "AS",
+    "Vietnam": "AS",
+    "Yemen": "AS",
+    "Asiatic Russia": "AS",
+    
+    # Oceania  
+    "Australia": "OC",
+    "Cook Islands": "OC",
+    "Fiji": "OC",
+    "French Polynesia": "OC",
+    "Kiribati": "OC",
+    "Marshall Islands": "OC",
+    "Micronesia": "OC",
+    "Nauru": "OC",
+    "New Caledonia": "OC",
+    "New Zealand": "OC",
+    "Palau": "OC",
+    "Papua New Guinea": "OC",
+    "Samoa": "OC",
+    "Solomon Islands": "OC",
+    "Tonga": "OC",
+    "Tuvalu": "OC",
+    "Vanuatu": "OC",
+    "Wallis and Futuna": "OC",
+    
+    # Antarctica
+    "Antarctica": "AN",
+}
+
+def get_continent_from_country(country: str) -> str | None:
+    """
+    Get continent code from DXCC country name.
+    
+    Args:
+        country: DXCC country name
+        
+    Returns:
+        Continent code (NA, SA, EU, AF, AS, OC, AN) or None if not found
+    """
+    return COUNTRY_TO_CONTINENT.get(country)
+
+def get_continent_from_call(call: str) -> str | None:
+    """
+    Get continent code from call sign.
+    
+    Args:
+        call: Amateur radio call sign
+        
+    Returns:
+        Continent code (NA, SA, EU, AF, AS, OC, AN) or None if not found
+    """
+    country = get_dxcc_country(call)
+    if country:
+        return get_continent_from_country(country)
+    return None
 
 ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+([A-Z0-9/]+)\s+(?P<call>[A-Z0-9/]+)")
 
@@ -1449,6 +1725,154 @@ def calculate_rag_chew_awards(qsos: Sequence[QSO], members: Sequence[Member]) ->
     return awards
 
 
+def calculate_wac_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[WACAward]:
+    """
+    Calculate SKCC Worked All Continents (WAC) Award progress.
+    
+    Rules:
+    - Work all 6 continents: NA, SA, EU, AF, AS, OC (Antarctica AN not required)
+    - Valid after October 9, 2011
+    - Both parties must be SKCC members at time of QSO
+    - Key types: SK (straight key), Side swiper (Cootie), or Bug
+    - Band endorsements available
+    - QRP endorsement available (5W or less)
+    """
+    # Build member lookup with all aliases
+    member_by_call = {}
+    for member in members:
+        for alias in generate_call_aliases(member.call):
+            member_by_call.setdefault(alias, member)
+    
+    # Track continents worked overall and by band
+    continents_overall = set()
+    qrp_continents_overall = set()
+    continents_by_band = {}  # band -> set of continents
+    qrp_continents_by_band = {}  # band -> set of continents for QRP
+    
+    # Valid key types for WAC award
+    VALID_KEY_TYPES = {"SK", "SIDE SWIPER", "COOTIE", "BUG"}
+    
+    for qso in qsos:
+        if not qso.call:
+            continue
+            
+        # Must be SKCC member
+        normalized_call = normalize_call(qso.call)
+        member = member_by_call.get(normalized_call)
+        if not member:
+            continue
+            
+        # Valid after October 9, 2011
+        if qso.date and qso.date < "20111009":
+            continue
+            
+        # Must have QSO date to verify member status
+        if not qso.date:
+            continue
+            
+        # Check if member was valid at QSO time
+        if member.join_date and qso.date < member.join_date:
+            continue
+            
+        # Check key type (if provided and key type enforcement is desired)
+        # For simplicity, we'll accept all QSOs but note the key type requirement
+        key_type = qso.key_type or ""
+        valid_key = not key_type or key_type.upper() in VALID_KEY_TYPES
+        
+        # Get continent from call sign
+        continent = get_continent_from_call(qso.call)
+        if not continent:
+            continue
+            
+        # Only count the main 6 continents (exclude Antarctica)
+        if continent not in ["NA", "SA", "EU", "AF", "AS", "OC"]:
+            continue
+            
+        # Check if QRP (5W or less)
+        is_qrp = False
+        if qso.tx_pwr:
+            try:
+                power_watts = float(qso.tx_pwr)
+                is_qrp = power_watts <= 5
+            except (ValueError, TypeError):
+                is_qrp = False
+        
+        # Add to overall tracking
+        continents_overall.add(continent)
+        if is_qrp:
+            qrp_continents_overall.add(continent)
+        
+        # Track by band
+        band = qso.band or "Unknown"
+        if band not in continents_by_band:
+            continents_by_band[band] = set()
+            qrp_continents_by_band[band] = set()
+        
+        continents_by_band[band].add(continent)
+        if is_qrp:
+            qrp_continents_by_band[band].add(continent)
+    
+    awards = []
+    
+    # Overall WAC Award
+    awards.append(WACAward(
+        name="Worked All Continents (WAC)",
+        award_type="WAC",
+        required_continents=6,
+        current_continents=len(continents_overall),
+        achieved=len(continents_overall) >= 6,
+        continents_worked=sorted(list(continents_overall)),
+        qrp_qualified=False,
+        band=None
+    ))
+    
+    # Overall WAC-QRP Award
+    awards.append(WACAward(
+        name="Worked All Continents QRP (WAC-QRP)",
+        award_type="WAC-QRP", 
+        required_continents=6,
+        current_continents=len(qrp_continents_overall),
+        achieved=len(qrp_continents_overall) >= 6,
+        continents_worked=sorted(list(qrp_continents_overall)),
+        qrp_qualified=True,
+        band=None
+    ))
+    
+    # Band endorsements
+    STANDARD_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
+    for band in STANDARD_BANDS:
+        band_continents = continents_by_band.get(band, set())
+        qrp_band_continents = qrp_continents_by_band.get(band, set())
+        
+        if len(band_continents) > 0:  # Only include bands with activity
+            # Regular band endorsement
+            awards.append(WACAward(
+                name=f"WAC {band} Band",
+                award_type=f"WAC-{band}",
+                required_continents=6,
+                current_continents=len(band_continents),
+                achieved=len(band_continents) >= 6,
+                continents_worked=sorted(list(band_continents)),
+                qrp_qualified=False,
+                band=band
+            ))
+            
+            # QRP band endorsement (if any QRP contacts on this band)
+            if len(qrp_band_continents) > 0:
+                awards.append(WACAward(
+                    name=f"WAC {band} Band QRP",
+                    award_type=f"WAC-{band}-QRP",
+                    required_continents=6,
+                    current_continents=len(qrp_band_continents),
+                    achieved=len(qrp_band_continents) >= 6,
+                    continents_worked=sorted(list(qrp_band_continents)),
+                    qrp_qualified=True,
+                    band=band
+                ))
+    
+    return awards
+
+
 def calculate_awards(
     qsos: Sequence[QSO],
     members: Sequence[Member],
@@ -1832,6 +2256,9 @@ def calculate_awards(
     
     # Calculate Rag Chew Awards
     rag_chew_awards = calculate_rag_chew_awards(filtered_qsos, members)
+    
+    # Calculate WAC Awards
+    wac_awards = calculate_wac_awards(filtered_qsos, members)
 
     return AwardCheckResult(
         unique_members_worked=unique_count,
@@ -1847,4 +2274,5 @@ def calculate_awards(
         pfx_awards=pfx_awards,
         triple_key_awards=triple_key_awards,
         rag_chew_awards=rag_chew_awards,
+        wac_awards=wac_awards,
     )

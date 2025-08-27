@@ -204,6 +204,21 @@ class AwardsGUI:
             self.rag_chew_tree.column(col, width=w, anchor=tk.CENTER)
         self.rag_chew_tree.pack(fill=tk.BOTH, expand=True)
 
+        # WAC Awards tab
+        wac_tab = ttk.Frame(notebook)
+        notebook.add(wac_tab, text="WAC Awards")
+        self.wac_tree = ttk.Treeview(wac_tab, columns=("award_type", "band", "continents", "worked", "achieved"), show="headings")
+        for col, txt, w in [
+            ("award_type", "Award Type", 150),
+            ("band", "Band", 60),
+            ("continents", "Continents", 200),
+            ("worked", "Worked", 80),
+            ("achieved", "Achieved", 80),
+        ]:
+            self.wac_tree.heading(col, text=txt)
+            self.wac_tree.column(col, width=w, anchor=tk.CENTER)
+        self.wac_tree.pack(fill=tk.BOTH, expand=True)
+
         # Unique count
         bottom = ttk.Frame(self.root, padding=4)
         bottom.pack(fill=tk.X)
@@ -323,7 +338,7 @@ class AwardsGUI:
         elif kind == "result":
             result = item[1]
             # Update awards tree
-            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree, self.pfx_tree, self.triple_key_tree, self.rag_chew_tree):
+            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree, self.dx_tree, self.pfx_tree, self.triple_key_tree, self.rag_chew_tree, self.wac_tree):
                 for iid in tree.get_children():
                     tree.delete(iid)
             for a in result.awards:
@@ -406,6 +421,20 @@ class AwardsGUI:
                                             values=(level_text, band_text, minutes_text, qsos_text, achieved_text),
                                             text=rc_award.name,
                                             tags=("ach" if rc_award.achieved else ""))
+            
+            # Display WAC Awards
+            for wac_award in result.wac_awards:
+                if wac_award.current_continents > 0 or wac_award.achieved:  # Only show if there's progress
+                    award_type_text = wac_award.award_type
+                    band_text = wac_award.band if wac_award.band else "Overall"
+                    continents_text = "/".join(wac_award.continents_worked) if wac_award.continents_worked else "None"
+                    worked_text = f"{wac_award.current_continents}/6"
+                    achieved_text = "Yes" if wac_award.achieved else "No"
+                    
+                    self.wac_tree.insert("", tk.END,
+                                       values=(award_type_text, band_text, continents_text, worked_text, achieved_text),
+                                       text=wac_award.name,
+                                       tags=("ach" if wac_award.achieved else ""))
             
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"

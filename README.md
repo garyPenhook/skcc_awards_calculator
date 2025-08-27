@@ -22,6 +22,10 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **Award Endorsements**: Calculates band and mode endorsements  
 ✅ **Canadian Maple Awards**: Calculates geographic-based awards for Canadian provinces/territories  
 ✅ **DX Awards**: Supports both DXQ (QSO-based) and DXC (country-based) international awards  
+✅ **PFX Awards**: Calculates prefix-based awards (Px1-Px10) with call sign prefix scoring  
+✅ **Triple Key Awards**: Tracks progress using straight key, bug, and side swiper key types  
+✅ **Rag Chew Awards**: Accumulates conversational CW minutes for RC1-RC10+ levels  
+✅ **WAC Awards**: Worked All Continents awards with band and QRP endorsements  
 
 ### Award Rules Implemented
 
@@ -86,6 +90,23 @@ The program correctly implements these SKCC award requirements:
    - **QSO Rules**: Back-to-back contacts with same station not allowed
    - Valid after July 1, 2013; both parties must be SKCC members at time of QSO
 
+10. **SKCC Worked All Continents (WAC) Award**:
+    - **Requirement**: Contact SKCC members from all 6 continents (North America, South America, Europe, Africa, Asia, Oceania)
+    - **Key Types**: Must use straight key (SK), side swiper (cootie), or bug
+    - **Award Types**:
+      - **WAC**: Basic award for working all 6 continents
+      - **WAC-QRP**: QRP endorsement (5 watts or less)
+      - **WAC Band Endorsements**: Individual band achievements (160M-10M)
+      - **WAC Band QRP**: Combined band and QRP endorsements
+    - **Continental Areas**: 
+      - **North America (NA)**: USA, Canada, Mexico, Caribbean, Central America
+      - **South America (SA)**: South American countries and territories
+      - **Europe (EU)**: European countries including European Russia
+      - **Africa (AF)**: African countries and territories
+      - **Asia (AS)**: Asian countries including Asiatic Russia  
+      - **Oceania (OC)**: Australia, New Zealand, Pacific islands
+    - Valid after October 9, 2011; both parties must be SKCC members at time of QSO
+
 ## Requirements
 
 - **Windows 10/11**
@@ -134,7 +155,7 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, **Triple Key**, and **Rag Chew** tabs
+5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, **Triple Key**, **Rag Chew**, and **WAC Awards** tabs
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
@@ -144,6 +165,7 @@ python scripts\gui.py
 - **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
 - **Triple Key**: Shows progress toward Triple Key Award using straight key, bug, and sideswiper
 - **Rag Chew**: Shows progress toward RC1-RC10+ awards based on accumulated conversation minutes
+- **WAC Awards**: Shows progress toward Worked All Continents awards with band and QRP endorsements
 
 ### Option 2: Command Line Interface
 ```cmd
