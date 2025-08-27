@@ -48,6 +48,8 @@ class QSO:
     skcc: str | None = None  # Raw SKCC field (e.g., 14947C, 660S)
     time_on: str | None = None  # HHMMSS if provided
     key_type: str | None = None  # Raw key type descriptor if available (e.g., STRAIGHT, BUG, COOTIE)
+    tx_pwr: str | None = None  # Transmitter power
+    comment: str | None = None  # QSO comment
 
 @dataclass
 class AwardProgress:
@@ -58,10 +60,25 @@ class AwardProgress:
     description: str = ""
 
 @dataclass
+class CanadianMapleAward:
+    name: str
+    level: str  # "Yellow", "Orange", "Red", "Gold"
+    required_provinces: int
+    required_bands: int | None  # None for Yellow (any mix), specific number for others
+    band: str | None  # Specific band for Orange awards, None for others
+    qrp_required: bool
+    current_provinces: int
+    current_bands: int
+    achieved: bool
+    provinces_worked: List[str]
+    bands_worked: List[str]
+
+@dataclass
 class AwardCheckResult:
     unique_members_worked: int
     awards: List[AwardProgress]
     endorsements: List[AwardEndorsement]
+    canadian_maple_awards: List[CanadianMapleAward]  # New field
     total_qsos: int
     matched_qsos: int
     unmatched_calls: List[str]
@@ -76,6 +93,52 @@ class AwardEndorsement:
     required: int       # Threshold required (same as base award requirement)
     current: int        # Unique SKCC members worked on this band/mode
     achieved: bool
+
+# Canadian Maple Award configuration
+CANADIAN_PROVINCES_TERRITORIES = {
+    # Provinces
+    "NS": "Nova Scotia",           # VA1/VE1
+    "QC": "Quebec",               # VA2/VE2  
+    "ON": "Ontario",              # VA3/VE3
+    "MB": "Manitoba",             # VA4/VE4
+    "SK": "Saskatchewan",         # VA5/VE5
+    "AB": "Alberta",              # VA6/VE6
+    "BC": "British Columbia",     # VA7/VE7
+    "NB": "New Brunswick",        # VE9
+    "NL": "Newfoundland",         # VO1
+    "NL_LAB": "Labrador",         # VO2
+    # Territories (valid after January 2014)
+    "NT": "Northwest Territories", # VE8
+    "NU": "Nunavut",              # VY0
+    "YT": "Yukon",                # VY1
+    "PE": "Prince Edward Island", # VY2
+    # Special
+    "SEA": "Stations at sea",     # VE0
+    "GOV": "Government of Canada", # VY9
+}
+
+# Mapping of call sign prefixes to provinces/territories
+CANADIAN_CALL_TO_PROVINCE = {
+    "VA1": "NS", "VE1": "NS",           # Nova Scotia
+    "VA2": "QC", "VE2": "QC",           # Quebec
+    "VA3": "ON", "VE3": "ON",           # Ontario
+    "VA4": "MB", "VE4": "MB",           # Manitoba
+    "VA5": "SK", "VE5": "SK",           # Saskatchewan
+    "VA6": "AB", "VE6": "AB",           # Alberta
+    "VA7": "BC", "VE7": "BC",           # British Columbia
+    "VE8": "NT",                        # Northwest Territories
+    "VE9": "NB",                        # New Brunswick
+    "VO1": "NL",                        # Newfoundland
+    "VO2": "NL_LAB",                    # Labrador
+    "VY0": "NU",                        # Nunavut
+    "VY1": "YT",                        # Yukon
+    "VY2": "PE",                        # Prince Edward Island
+    "VY9": "GOV",                       # Government of Canada
+    "VE0": "SEA",                       # Stations at sea
+}
+
+# HF bands for Canadian Maple Award (160-10m including WARC)
+CANADIAN_MAPLE_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
 
 ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+([A-Z0-9/]+)\s+(?P<call>[A-Z0-9/]+)")
 
@@ -170,7 +233,8 @@ def _parse_roster_text(text: str) -> List[Member]:
                     break
             if call_candidate:
                 call_candidate = normalize_call(call_candidate)
-                members.append(Member(call=call_candidate, number=number, suffix=suffix))
+                if call_candidate:  # Only add if normalization succeeded
+                    members.append(Member(call=call_candidate, number=number, suffix=suffix))
         if members:
             return members
     except Exception:  # pragma: no cover
@@ -309,6 +373,8 @@ def parse_adif(content: str) -> List[QSO]:
                         skcc=skcc_raw,
                         time_on=current.get("time_on"),
                         key_type=(current.get("key") or current.get("app_skcc_key") or current.get("skcc_key") or current.get("app_key")),
+                        tx_pwr=current.get("tx_pwr"),
+                        comment=current.get("comment"),
                     )
                 )
             current = {}
@@ -342,6 +408,8 @@ def parse_adif(content: str) -> List[QSO]:
                 skcc=skcc_raw,
                 time_on=current.get("time_on"),
                 key_type=(current.get("key") or current.get("app_skcc_key") or current.get("skcc_key") or current.get("app_key")),
+                tx_pwr=current.get("tx_pwr"),
+                comment=current.get("comment"),
             )
         )
     return records
@@ -415,6 +483,191 @@ def member_qualifies_for_award_at_qso_time(qso: QSO, member: Member | None, awar
         return qso_time_status in ['C', 'T', 'S']  # Centurions/Tribunes/Senators at QSO time
     
     return False
+
+
+def get_canadian_province(call: str) -> str | None:
+    """
+    Extract Canadian province/territory from call sign.
+    
+    Args:
+        call: Amateur radio call sign
+        
+    Returns:
+        Province/territory code or None if not Canadian or not recognized
+    """
+    if not call:
+        return None
+    
+    call = call.upper().strip()
+    
+    # Handle portable operations (remove /suffix)
+    base_call = call.split('/')[0]
+    
+    # Check for Canadian prefixes
+    for prefix, province in CANADIAN_CALL_TO_PROVINCE.items():
+        if base_call.startswith(prefix):
+            return province
+    
+    return None
+
+
+def calculate_canadian_maple_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[CanadianMapleAward]:
+    """
+    Calculate Canadian Maple Award progress.
+    
+    Rules:
+    - Yellow: Work 10 provinces/territories on any mix of bands
+    - Orange: Work 10 provinces/territories on a single band (separate award per band)  
+    - Red: Work 10 provinces/territories on each of all 9 HF bands (90 contacts)
+    - Gold: Same as Red but QRP (5W or less)
+    
+    Valid after 1 September 2009 for provinces, January 2014 for territories.
+    """
+    # Build member lookup
+    member_by_call = {}
+    for member in members:
+        for alias in generate_call_aliases(member.call):
+            member_by_call.setdefault(alias, member)
+    
+    # Track provinces worked by band
+    provinces_by_band = {}  # band -> set of provinces
+    provinces_overall = set()
+    
+    # Track QRP contacts separately
+    qrp_provinces_by_band = {}  # band -> set of provinces (QRP only)
+    qrp_provinces_overall = set()
+    
+    for qso in qsos:
+        if not qso.call or not qso.band:
+            continue
+            
+        # Must be SKCC member
+        if qso.call not in member_by_call:
+            continue
+            
+        province = get_canadian_province(qso.call)
+        if not province:
+            continue
+            
+        # Date validation
+        if qso.date:
+            qso_date = qso.date
+            
+            # Provinces valid after 1 September 2009
+            if province in ["NS", "QC", "ON", "MB", "SK", "AB", "BC", "NB", "NL", "NL_LAB", "SEA", "GOV"]:
+                if qso_date < "20090901":
+                    continue
+                    
+            # Territories valid after January 2014
+            elif province in ["NT", "NU", "YT", "PE"]:
+                if qso_date < "20140101":
+                    continue
+        
+        # Normalize band name
+        band = qso.band.upper()
+        if band not in CANADIAN_MAPLE_BANDS:
+            continue
+            
+        # Track province by band
+        if band not in provinces_by_band:
+            provinces_by_band[band] = set()
+        provinces_by_band[band].add(province)
+        provinces_overall.add(province)
+        
+        # Check if QRP (5W or less)
+        is_qrp = False
+        if hasattr(qso, 'tx_pwr') and qso.tx_pwr:
+            try:
+                power = float(qso.tx_pwr)
+                is_qrp = power <= 5.0
+            except (ValueError, TypeError):
+                pass
+        # Also check for QRP indicator in comment or mode
+        if (hasattr(qso, 'comment') and qso.comment and 'QRP' in qso.comment.upper()) or \
+           (qso.mode and 'QRP' in qso.mode.upper()):
+            is_qrp = True
+            
+        if is_qrp:
+            if band not in qrp_provinces_by_band:
+                qrp_provinces_by_band[band] = set()
+            qrp_provinces_by_band[band].add(province)
+            qrp_provinces_overall.add(province)
+    
+    awards = []
+    
+    # Yellow Maple Award (10 provinces on any mix of bands)
+    yellow_achieved = len(provinces_overall) >= 10
+    awards.append(CanadianMapleAward(
+        name="Canadian Maple",
+        level="Yellow",
+        required_provinces=10,
+        required_bands=None,
+        band=None,
+        qrp_required=False,
+        current_provinces=len(provinces_overall),
+        current_bands=len(provinces_by_band),
+        achieved=yellow_achieved,
+        provinces_worked=sorted(list(provinces_overall)),
+        bands_worked=sorted(list(provinces_by_band.keys()))
+    ))
+    
+    # Orange Maple Award (10 provinces on single band - one award per band)
+    for band in CANADIAN_MAPLE_BANDS:
+        band_provinces = provinces_by_band.get(band, set())
+        orange_achieved = len(band_provinces) >= 10
+        awards.append(CanadianMapleAward(
+            name="Canadian Maple",
+            level="Orange",
+            required_provinces=10,
+            required_bands=1,
+            band=band,
+            qrp_required=False,
+            current_provinces=len(band_provinces),
+            current_bands=1 if band_provinces else 0,
+            achieved=orange_achieved,
+            provinces_worked=sorted(list(band_provinces)),
+            bands_worked=[band] if band_provinces else []
+        ))
+    
+    # Red Maple Award (10 provinces on each of all 9 bands)
+    bands_with_10_provinces = sum(1 for band in CANADIAN_MAPLE_BANDS 
+                                 if len(provinces_by_band.get(band, set())) >= 10)
+    red_achieved = bands_with_10_provinces >= 9
+    awards.append(CanadianMapleAward(
+        name="Canadian Maple",
+        level="Red",
+        required_provinces=10,
+        required_bands=9,
+        band=None,
+        qrp_required=False,
+        current_provinces=len(provinces_overall),
+        current_bands=bands_with_10_provinces,
+        achieved=red_achieved,
+        provinces_worked=sorted(list(provinces_overall)),
+        bands_worked=[band for band in CANADIAN_MAPLE_BANDS 
+                     if len(provinces_by_band.get(band, set())) >= 10]
+    ))
+    
+    # Gold Maple Award (10 provinces on each of all 9 bands, QRP only)
+    qrp_bands_with_10_provinces = sum(1 for band in CANADIAN_MAPLE_BANDS 
+                                     if len(qrp_provinces_by_band.get(band, set())) >= 10)
+    gold_achieved = qrp_bands_with_10_provinces >= 9
+    awards.append(CanadianMapleAward(
+        name="Canadian Maple",
+        level="Gold",
+        required_provinces=10,
+        required_bands=9,
+        band=None,
+        qrp_required=True,
+        current_provinces=len(qrp_provinces_overall),
+        current_bands=qrp_bands_with_10_provinces,
+        achieved=gold_achieved,
+        provinces_worked=sorted(list(qrp_provinces_overall)),
+        bands_worked=[band for band in CANADIAN_MAPLE_BANDS 
+                     if len(qrp_provinces_by_band.get(band, set())) >= 10]
+    ))
+    
+    return awards
 
 
 def calculate_awards(
@@ -535,7 +788,9 @@ def calculate_awards(
 
     # Iterate QSOs; validate membership at QSO time and populate category sets
     for q in chronological:
-        member = member_by_call.get(q.call or "")
+        # Normalize QSO call for lookup
+        normalized_call = normalize_call(q.call) if q.call else ""
+        member = member_by_call.get(normalized_call or "")
         numeric_id: int | None = None
         if member:
             # Membership date validation (rule #3)
@@ -776,6 +1031,9 @@ def calculate_awards(
                     )
         endorsements.sort(key=lambda e: (e.award, e.category, e.value))
 
+    # Calculate Canadian Maple Awards
+    canadian_maple_awards = calculate_canadian_maple_awards(filtered_qsos, members)
+
     return AwardCheckResult(
         unique_members_worked=unique_count,
         awards=progresses,
@@ -785,4 +1043,5 @@ def calculate_awards(
         unmatched_calls=sorted(unmatched_calls),
         thresholds_used=list(use_thresholds),
         total_cw_qsos=len(filtered_qsos),
+        canadian_maple_awards=canadian_maple_awards,
     )

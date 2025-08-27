@@ -20,6 +20,7 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **Historical Accuracy**: Correctly handles award progression based on QSO timestamps  
 ✅ **Multiple Interfaces**: Both GUI and command-line interfaces available  
 ✅ **Award Endorsements**: Calculates band and mode endorsements  
+✅ **Canadian Maple Awards**: Calculates geographic-based awards for Canadian provinces/territories  
 
 ### Award Rules Implemented
 
@@ -43,6 +44,14 @@ The program correctly implements these SKCC award requirements:
 4. **Special Call Exclusions**:
    - K9SKC (club call) and K3Y* (special event calls) excluded after December 1, 2009
    - Both parties must be SKCC members at time of QSO
+
+5. **Canadian Maple Awards**:
+   - **Yellow Maple**: Contact 10 Canadian provinces/territories on any mix of HF bands
+   - **Orange Maple**: Contact 10 provinces/territories on a single band (separate award per band)
+   - **Red Maple**: Contact 10 provinces/territories on each of all 9 HF bands (90 contacts total)
+   - **Gold Maple**: Same as Red Maple but QRP (5 watts or less)
+   - Valid after September 1, 2009 for provinces, January 2014 for territories
+   - Supports VE1-VE9, VA1-VA9, VY0-VY2, VO1-VO2 call signs
 
 ## Requirements
 
@@ -92,7 +101,12 @@ python scripts\gui.py
    - ✅ **Use historical status** (uses QSO-time member status)
    - ⚠️ **Enforce key type** (only if your log has key type data)
 4. Click **"Compute"** to calculate award progress
-5. View results in the Awards and Endorsements tabs
+5. View results in the **Awards**, **Endorsements**, and **Canadian Maple** tabs
+
+**Result Tabs:**
+- **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
+- **Endorsements**: Shows band and mode endorsement progress  
+- **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
 
 ### Option 2: Command Line Interface
 ```cmd

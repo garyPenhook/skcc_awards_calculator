@@ -131,6 +131,20 @@ class AwardsGUI:
             self.endorse_tree.column(col, width=w, anchor=tk.CENTER)
         self.endorse_tree.pack(fill=tk.BOTH, expand=True)
 
+        # Canadian Maple Awards tab
+        maple_tab = ttk.Frame(notebook)
+        notebook.add(maple_tab, text="Canadian Maple")
+        self.maple_tree = ttk.Treeview(maple_tab, columns=("level", "band", "provinces", "achieved"), show="headings")
+        for col, txt, w in [
+            ("level", "Level", 80),
+            ("band", "Band", 80),
+            ("provinces", "Provinces", 100),
+            ("achieved", "Achieved", 80),
+        ]:
+            self.maple_tree.heading(col, text=txt)
+            self.maple_tree.column(col, width=w, anchor=tk.CENTER)
+        self.maple_tree.pack(fill=tk.BOTH, expand=True)
+
         # Unique count
         bottom = ttk.Frame(self.root, padding=4)
         bottom.pack(fill=tk.X)
@@ -250,7 +264,7 @@ class AwardsGUI:
         elif kind == "result":
             result = item[1]
             # Update awards tree
-            for tree in (self.awards_tree, self.endorse_tree):
+            for tree in (self.awards_tree, self.endorse_tree, self.maple_tree):
                 for iid in tree.get_children():
                     tree.delete(iid)
             for a in result.awards:
@@ -263,6 +277,20 @@ class AwardsGUI:
                 self.awards_tree.item(iid, text=award_obj.name)
             for e in result.endorsements:
                 self.endorse_tree.insert("", tk.END, values=(e.category, e.value, e.current, e.required), text=e.award)
+            
+            # Display Canadian Maple Awards
+            for maple in result.canadian_maple_awards:
+                band_text = maple.band if maple.band else "All"
+                province_text = f"{maple.current_provinces}/{maple.required_provinces}"
+                achieved_text = "Yes" if maple.achieved else "No"
+                qrp_text = " (QRP)" if maple.qrp_required else ""
+                level_text = f"{maple.level}{qrp_text}"
+                
+                self.maple_tree.insert("", tk.END, 
+                                     values=(level_text, band_text, province_text, achieved_text),
+                                     text=maple.name,
+                                     tags=("ach" if maple.achieved else ""))
+            
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"
             )
