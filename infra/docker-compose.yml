@@ -1,0 +1,35 @@
+version: '3.9'
+services:
+  backend:
+    build: ../backend
+    container_name: skcc_awards_backend
+    env_file:
+      - ../.env
+    ports:
+      - "8000:8000"
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+    depends_on:
+      - db
+  frontend:
+    build: ../frontend
+    container_name: skcc_awards_frontend
+    environment:
+      - VITE_API_BASE=http://localhost:8000
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+  db:
+    image: postgres:16-alpine
+    container_name: skcc_awards_db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=skcc_awards
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+volumes:
+  db_data:
+

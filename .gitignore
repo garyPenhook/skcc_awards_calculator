@@ -1,0 +1,94 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+.venv/
+.env
+.env.*
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+*.log
+.dist/
+dist/
+.vite/
+
+# IDE
+.vscode/
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Coverage / test
+htmlcov/
+.coverage*
+.pytest_cache/
+
+# Build artifacts
+build/
+
+# Mypy / Ruff
+.mypy_cache/
+.ruff_cache/
+
+# SKCC Project Specific
+# =====================
+
+# ADIF log files (contain personal QSO data - keep private)
+# Exclude ALL ADIF files including sample/test files
+*.adi
+*.adif
+*.ADI
+*.ADIF
+
+# Roster cache files (downloaded data that can be re-fetched)
+roster_*.csv
+roster_*.html
+cached_roster.*
+
+# Local configuration and test files
+config.local.py
+settings.local.py
+test_*.adi
+test_*.adif
+
+# Backup and temporary files
+*.bak
+*.backup
+*.old
+*.tmp
+temp/
+tmp/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Log files
+*.log
+logs/
+
+# Windows specific
+Thumbs.db
+*.lnk
+$RECYCLE.BIN/
+Desktop.ini
+
+# macOS specific  
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Docker data
+docker-data/
+postgres-data/
+

@@ -1,0 +1,6 @@
+line-length = 100
+select = ["E","F","I","B","UP","N","ASYNC","S","C4"]
+ignore = ["E501","S101","I001","B008","B904","UP006","ASYNC109","F401"]
+
+[lint.isort]
+known-first-party = ["app"]

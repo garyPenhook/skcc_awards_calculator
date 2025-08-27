@@ -1,0 +1,323 @@
+# SKCC Awards Calculator
+
+A Python application for calculating SKCC (Straight Key Century Club) award progress from ADIF log files. This program validates QSOs against the official SKCC member roster and accurately calculates progress toward Centurion, Tribune, and Senator awards.
+
+## What This Program Does
+
+### SKCC Award Overview
+The Straight Key Century Club offers three main awards based on contacting SKCC members:
+
+- **Centurion Award (100)**: Contact 100 unique SKCC members
+- **Tribune Award (500)**: Contact 500 unique SKCC members who have achieved Centurion/Tribune/Senator status
+- **Senator Award**: Achieve Tribune x8 (400 qualified contacts) + contact 200 unique Tribune/Senator members
+
+### Key Features
+
+✅ **Accurate Award Validation**: Implements official SKCC award rules including suffix requirements  
+✅ **QSO-Time Status Validation**: Uses member award status **at the time of QSO** from SKCC Logger data  
+✅ **Live Roster Integration**: Fetches current SKCC member roster automatically  
+✅ **ADIF Parsing**: Supports standard ADIF log files from popular logging software  
+✅ **Historical Accuracy**: Correctly handles award progression based on QSO timestamps  
+✅ **Multiple Interfaces**: Both GUI and command-line interfaces available  
+✅ **Award Endorsements**: Calculates band and mode endorsements  
+
+### Award Rules Implemented
+
+The program correctly implements these SKCC award requirements:
+
+1. **Centurion Rules**:
+   - Contact 100 unique SKCC members
+   - All SKCC members count regardless of award status
+   - QSOs must use approved key types (straight key, bug, side swiper)
+
+2. **Tribune Rules**:
+   - Contact 500 unique SKCC members who have C/T/S suffix
+   - Only members with Centurion/Tribune/Senator status count
+   - Member must have had award status **at time of QSO**
+
+3. **Senator Rules**:
+   - Must first achieve Tribune x8 (400 contacts with C/T/S members)
+   - Then contact 200 unique Tribune/Senator members (T/S suffix only)
+   - Strict QSO-time validation of member status
+
+4. **Special Call Exclusions**:
+   - K9SKC (club call) and K3Y* (special event calls) excluded after December 1, 2009
+   - Both parties must be SKCC members at time of QSO
+
+## Requirements
+
+- **Windows 10/11**
+- **Python 3.9 or later**
+- **Internet connection** (for fetching SKCC roster)
+- **ADIF log file** (preferably from SKCC Logger for best accuracy)
+
+## Installation
+
+### Step 1: Install Python
+1. Download Python from [python.org](https://www.python.org/downloads/)
+2. During installation, check "Add Python to PATH"
+3. Verify installation by opening Command Prompt and typing: `python --version`
+
+### Step 2: Download the Program
+1. Download or clone this repository
+2. Extract to a folder like `C:\skcc_awards\`
+
+### Step 3: Install Dependencies
+Open Command Prompt in the program folder and run:
+```cmd
+# Create virtual environment
+python -m venv .venv
+
+# Activate virtual environment
+.venv\Scripts\activate
+
+# Install required packages
+pip install -r requirements.txt
+```
+
+## How to Run
+
+### Option 1: Graphical Interface (Recommended)
+```cmd
+cd C:\skcc_awards
+.venv\Scripts\activate
+python scripts\gui.py
+```
+
+**Using the GUI:**
+1. Click **"Add ADIF"** to select your log file(s)
+2. Click **"Load Roster (Live)"** to download current SKCC member roster
+3. Configure options:
+   - ✅ **Enforce SKCC suffix rules** (recommended for accurate award validation)
+   - ✅ **Use historical status** (uses QSO-time member status)
+   - ⚠️ **Enforce key type** (only if your log has key type data)
+4. Click **"Compute"** to calculate award progress
+5. View results in the Awards and Endorsements tabs
+
+### Option 2: Command Line Interface
+```cmd
+cd C:\skcc_awards
+.venv\Scripts\activate
+python -m backend.app.main
+```
+
+### Option 3: Debug/Testing Script
+```cmd
+cd C:\skcc_awards
+.venv\Scripts\activate
+python scripts\debug_adif.py
+```
+
+## Understanding the Results
+
+### Award Progress Display
+```
+Centurion: 100/100 (ACHIEVED) - Contact 100 unique SKCC members
+Tribune: 87/500 (in progress) - Contact 500 unique members who were C/T/S at QSO time
+Tribune x8: 87/400 (in progress) - Contact 400 unique members who were C/T/S at QSO time
+Senator: 83/200 (in progress) - Tribune x8 + 200 members who were T/S at QSO time. Prerequisite: ✗
+```
+
+### QSO-Time Status Validation
+The program shows the difference between current roster status and status at QSO time:
+
+```
+KQ4LEA: QSO on 20250524
+  SKCC field: 29650
+  Status at QSO time: No award
+  Current roster status: Tribune
+  Tribune credit: ✗ (correctly excluded - no award at QSO time)
+```
+
+## ADIF File Requirements
+
+### Best Results: SKCC Logger
+For maximum accuracy, use **SKCC Logger** to record your QSOs:
+- Captures member award status at QSO time
+- Includes proper SKCC field formatting
+- Validates member numbers in real-time
+- Available from SKCC Member Services
+
+### Other Logging Software
+The program works with any ADIF-compatible logger, but requires:
+- `CALL` field with station call sign
+- `QSO_DATE` field in YYYYMMDD format
+- `SKCC` field with member number (and suffix if known)
+- Optional: `MODE`, `BAND`, key type fields
+
+### Sample ADIF Record
+```
+<CALL:6>KA3LOC <QSO_DATE:8>20250520 <BAND:3>20M <MODE:2>CW <SKCC:4>660S <EOR>
+```
+
+## Configuration Options
+
+### Suffix Rule Enforcement
+- **Enabled**: Uses official SKCC award rules (recommended)
+  - Centurion: All SKCC members count
+  - Tribune: Only C/T/S members count
+  - Senator: Only T/S members count
+- **Disabled**: Legacy counting (all members count for all awards)
+
+### Historical Status Validation
+- **QSO-Time Status**: Uses member status from SKCC field at time of QSO (most accurate)
+- **Current Status**: Uses current roster status (less accurate for historical QSOs)
+
+### Key Type Enforcement
+- **Enabled**: Only counts QSOs with approved key types
+- **Disabled**: Counts all QSOs regardless of key type
+
+## Troubleshooting
+
+### Common Issues
+
+**"No module named 'tkinter'"**
+```cmd
+# Install tkinter support
+pip install tk
+```
+
+**"Failed to fetch roster"**
+- Check internet connection
+- SKCC website may be temporarily unavailable
+- Try loading a saved roster CSV file instead
+
+**"No QSOs parsed"**
+- Verify ADIF file format
+- Check that file contains `<EOR>` markers
+- Ensure CALL and QSO_DATE fields are present
+
+**Low matching QSO count**
+- Many QSOs may be with non-SKCC members (normal)
+- Check that SKCC numbers in log are correct
+- Verify call sign normalization is working
+
+### Log File Locations
+- **SKCC Logger**: Usually in `Documents\skcc\`
+- **Ham Radio Deluxe**: Check HRD logbook export
+- **N1MM+**: Export to ADIF format
+- **Contest loggers**: May need conversion to standard ADIF
+
+## File Structure
+
+```
+skcc_awards/
+├── README.md                 # This file
+├── requirements.txt          # Python dependencies
+├── LICENSE                   # Software license
+├── backend/
+│   └── app/
+│       ├── main.py          # FastAPI backend
+│       └── services/
+│           └── skcc.py      # Core SKCC logic
+├── scripts/
+│   ├── gui.py              # Tkinter GUI application
+│   ├── debug_adif.py       # Debug/testing script
+│   └── main.adi            # Sample ADIF file
+└── .vscode/                # VS Code configuration
+```
+
+## Technical Details
+
+### Roster Processing
+- Fetches live data from SKCC membership roster
+- Parses HTML table with member numbers, calls, and suffixes
+- Handles call sign aliases and portable operations
+- Supports offline roster CSV files
+
+### Award Calculation Algorithm
+1. Parse ADIF file(s) for QSO records
+2. Validate each QSO against SKCC membership roster
+3. Apply SKCC award rules and date restrictions
+4. Track unique members per award category
+5. Calculate award progress and endorsements
+
+### QSO-Time Status Validation
+The program uses the SKCC field from your log to determine the member's award status **at the time of QSO**:
+
+```python
+# Example: SKCC field "660S" means member #660 had Senator status at QSO time
+if qso.skcc == "660S":
+    member_status_at_qso_time = "Senator"  # Counts for Tribune and Senator awards
+elif qso.skcc == "660":
+    member_status_at_qso_time = "No award"  # Counts only for Centurion award
+```
+
+## Contributing
+
+This is an open-source project. Contributions welcome for:
+- Additional logging software support
+- Enhanced award rule validation
+- UI improvements
+- Bug fixes
+
+## Support
+
+For issues related to:
+- **SKCC award rules**: Contact SKCC Award Managers
+- **SKCC Logger software**: SKCC Member Services
+- **This program**: Create an issue in the repository
+
+## License
+
+See LICENSE file for software license terms.
+
+---
+
+**Important Note**: This program is an unofficial tool for SKCC award calculation. Official award applications must still be submitted through SKCC Award Managers with proper documentation. Always verify results with official SKCC resources.
+
+---
+
+## Original Stack Information (for developers)
+
+This was originally a monorepo template that has been converted to a specialized SKCC awards calculator.
+    schemas/          # Pydantic schemas
+    tests/            # Pytest tests
+frontend/             # React + TS app (Vite scaffold minimal)
+infra/
+  docker/             # Dockerfiles
+  docker-compose.yml  # Dev orchestration
+.github/workflows/    # CI pipeline definitions
+scripts/              # Dev helper scripts
+ docs/                # Architecture & decision records
+```
+
+## Quick Start (Backend Only)
+```bash
+python -m venv .venv
+source .venv/Scripts/activate  # (Windows: .venv\\Scripts\\activate)
+python -m pip install --upgrade pip
+pip install -r backend/requirements.txt
+uvicorn app.main:app --reload --app-dir backend/app
+```
+Visit: http://127.0.0.1:8000/health
+
+## Run All via Docker Compose
+```bash
+docker compose -f infra/docker-compose.yml up --build
+```
+Backend: http://localhost:8000  Frontend: http://localhost:5173
+
+## Tests
+```bash
+pytest -q
+```
+
+## Environment Variables
+Create a `.env` (root or backend/) with:
+```
+APP_ENV=dev
+APP_NAME=skcc_awards
+LOG_LEVEL=INFO
+DATABASE_URL=postgresql+psycopg://postgres:postgres@db:5432/skcc_awards
+```
+
+## Future Enhancements
+- Add Alembic migrations
+- Add domain-driven modules per award domain
+- Implement authentication (JWT / OAuth2)
+- Add caching (Redis) layer
+
+## License
+MIT
+
