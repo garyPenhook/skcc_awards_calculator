@@ -133,7 +133,14 @@ The program correctly implements these SKCC award requirements:
 2. Extract to a folder like `C:\skcc_awards\`
 
 ### Step 3: Install Dependencies
-Open Command Prompt in the program folder and run:
+Run the setup script:
+```cmd
+# Navigate to the project folder and run setup
+cd C:\skcc_awards
+setup.bat
+```
+
+Or manually:
 ```cmd
 # Create virtual environment
 python -m venv .venv
@@ -147,11 +154,20 @@ pip install -r requirements.txt
 
 ## How to Run
 
+### Quick Start (Windows)
+Double-click **`start.bat`** and select from menu:
+1. **Run GUI Application** - Launch the main Tkinter interface
+2. **Run Debug Mode** - Run debugging tools
+3. **Setup/Install Dependencies** - First-time setup
+
 ### Option 1: Graphical Interface (Recommended)
 ```cmd
-cd C:\skcc_awards
-.venv\Scripts\activate
-python scripts\gui.py
+# Quick start
+start.bat
+
+# Or manually:
+setup.bat          # First time only
+run_gui.bat        # Start the GUI
 ```
 
 **Using the GUI:**
@@ -176,16 +192,14 @@ python scripts\gui.py
 
 ### Option 2: Command Line Interface
 ```cmd
-cd C:\skcc_awards
+setup.bat                    # First time only
 .venv\Scripts\activate
-python -m backend.app.main
+cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Option 3: Debug/Testing Script
+### Option 3: Debug/Testing Scripts
 ```cmd
-cd C:\skcc_awards
-.venv\Scripts\activate
-python scripts\debug_adif.py
+run_debug.bat               # Run ADIF debugging tools
 ```
 
 ## Understanding the Results
@@ -282,19 +296,27 @@ pip install tk
 
 ```
 skcc_awards/
-├── README.md                 # This file
-├── requirements.txt          # Python dependencies
+├── README.md                 # This documentation
 ├── LICENSE                   # Software license
+├── requirements.txt          # Python dependencies
+├── main.adi                  # Sample ADIF file for testing
+├── start.bat                 # Windows launcher menu
+├── setup.bat                 # Windows setup script
+├── run_gui.bat              # Windows GUI launcher
+├── run_debug.bat            # Windows debug launcher
 ├── backend/
+│   ├── requirements.txt     # Backend-specific dependencies
 │   └── app/
-│       ├── main.py          # FastAPI backend
-│       └── services/
-│           └── skcc.py      # Core SKCC logic
-├── scripts/
-│   ├── gui.py              # Tkinter GUI application
-│   ├── debug_adif.py       # Debug/testing script
-│   └── main.adi            # Sample ADIF file
-└── .vscode/                # VS Code configuration
+│       ├── main.py          # FastAPI backend server
+│       ├── services/
+│       │   └── skcc.py      # Core SKCC awards logic
+│       ├── api/             # REST API endpoints
+│       ├── schemas/         # Pydantic data models
+│       └── tests/           # Unit tests
+└── scripts/
+    ├── gui.py              # Main Tkinter GUI application
+    ├── debug_*.py          # Debug and analysis tools
+    └── awards_check.py     # Command-line awards checker
 ```
 
 ## Technical Details
