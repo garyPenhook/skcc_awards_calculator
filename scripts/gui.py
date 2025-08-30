@@ -48,7 +48,6 @@ class AwardsGUI:
 
         self.roster_url_var = tk.StringVar(value="")
         # Options vars
-        self.include_unknown_var = tk.BooleanVar(value=False)
         self.enforce_key_var = tk.BooleanVar(value=False)
         self.missing_key_valid_var = tk.BooleanVar(value=True)
         self.enforce_suffix_var = tk.BooleanVar(value=True)  # Default to True for proper SKCC rules
@@ -77,7 +76,6 @@ class AwardsGUI:
         # Options frame
         opt_frame = ttk.Frame(self.root, padding=(8,0))
         opt_frame.pack(fill=tk.X)
-        ttk.Checkbutton(opt_frame, text="Include unknown SKCC IDs", variable=self.include_unknown_var).pack(side=tk.LEFT, padx=4)
         ttk.Checkbutton(opt_frame, text="Enforce key type", variable=self.enforce_key_var).pack(side=tk.LEFT, padx=4)
         ttk.Checkbutton(opt_frame, text="Missing key OK", variable=self.missing_key_valid_var).pack(side=tk.LEFT, padx=4)
         
@@ -179,7 +177,7 @@ class AwardsGUI:
         notebook.add(triple_key_tab, text="Triple Key")
         self.triple_key_tree = ttk.Treeview(triple_key_tab, columns=("key_type", "current", "threshold", "percentage", "achieved"), show="headings")
         for col, txt, w in [
-            ("key_type", "Key Type", 120),
+            ("key_type", "Key Type", 150),
             ("current", "Current", 80),
             ("threshold", "Threshold", 80),
             ("percentage", "Progress", 80),
@@ -299,7 +297,6 @@ class AwardsGUI:
             result = calculate_awards(
                 all_qsos,
                 self.members,
-                include_unknown_ids=self.include_unknown_var.get(),
                 enforce_key_type=self.enforce_key_var.get(),
                 treat_missing_key_as_valid=self.missing_key_valid_var.get(),
                 enforce_suffix_rules=self.enforce_suffix_var.get(),
@@ -400,17 +397,17 @@ class AwardsGUI:
             
             # Display Triple Key Awards
             for tk_award in result.triple_key_awards:
-                if tk_award.current_count > 0 or tk_award.achieved:  # Only show if there's progress
-                    key_type_text = tk_award.name
-                    current_text = str(tk_award.current_count)
-                    threshold_text = str(tk_award.threshold)
-                    percentage_text = f"{tk_award.percentage:.1f}%"
-                    achieved_text = "Yes" if tk_award.achieved else "No"
-                    
-                    self.triple_key_tree.insert("", tk.END,
-                                               values=(key_type_text, current_text, threshold_text, percentage_text, achieved_text),
-                                               text=tk_award.name,
-                                               tags=("ach" if tk_award.achieved else ""))
+                # Always show all Triple Key awards, even with 0 progress for better visibility
+                key_type_text = tk_award.name
+                current_text = str(tk_award.current_count)
+                threshold_text = str(tk_award.threshold)
+                percentage_text = f"{tk_award.percentage:.1f}%"
+                achieved_text = "Yes" if tk_award.achieved else "No"
+                
+                self.triple_key_tree.insert("", tk.END,
+                                           values=(key_type_text, current_text, threshold_text, percentage_text, achieved_text),
+                                           text=tk_award.name,
+                                           tags=("ach" if tk_award.achieved else ""))
             
             # Display Rag Chew Awards
             for rc_award in result.rag_chew_awards:

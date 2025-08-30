@@ -25,12 +25,12 @@ DEFAULT_AWARDS_URL = "https://www.skccgroup.com/awards/"
 
 # Award thresholds - NOTE: Tribune/Senator endorsements are calculated separately
 # Tribune Endorsement Rules:
-# - TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+# - TxN requires N times 50 QSOs total (cumulative: Tx2=100, Tx3=150, ..., Tx10=500)
 # - Higher endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
 # - Both parties must be Centurions at time of QSO for Tribune+ awards
 # - Only QSOs with Centurions/Tribunes/Senators (C/T/S suffix) count for Tribune
 # Senator Endorsement Rules:
-# - SxN requires N times 200 QSOs with T/S members (Sx2=400, Sx3=600, ..., Sx10=2000)
+# - SxN requires N times 200 QSOs with T/S members total (cumulative: Sx2=400, Sx3=600, ..., Sx10=2000)
 # - Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
 # - Only QSOs with Tribunes/Senators (T/S suffix) count for Senator
 # - Both parties must be Centurions at time of QSO
@@ -1902,7 +1902,6 @@ def calculate_awards(
     enforce_key_type: bool = False,
     allowed_key_types: Sequence[str] | None = None,
     treat_missing_key_as_valid: bool = True,
-    include_unknown_ids: bool = False,
     enforce_suffix_rules: bool = True,
 ) -> AwardCheckResult:
     """Calculate award progress plus (optionally) band endorsements.
@@ -1927,7 +1926,6 @@ def calculate_awards(
     
     Parameters:
         enforce_suffix_rules: if True, enforces SKCC suffix requirements for Tribune/Senator awards
-        include_unknown_ids: if True, accept numeric SKCC IDs parsed from log even when not present in roster
     """
     use_thresholds = list(thresholds) if thresholds else AWARD_THRESHOLDS
 
@@ -2041,8 +2039,6 @@ def calculate_awards(
                         m2 = number_to_member[candidate]
                         if not (m2.join_date and q.date and q.date < m2.join_date):
                             numeric_id = candidate
-                    elif include_unknown_ids:
-                        numeric_id = candidate
         if numeric_id is None:
             if q.call:
                 unmatched_calls.add(q.call)
@@ -2082,8 +2078,6 @@ def calculate_awards(
                         m2 = number_to_member[cand]
                         if m2.join_date and q.date and q.date < m2.join_date:
                             continue
-                        nid = cand
-                    elif include_unknown_ids:
                         nid = cand
             if nid is None:
                 continue
@@ -2145,8 +2139,6 @@ def calculate_awards(
                             continue
                         member = m2
                         numeric_id = candidate
-                    elif include_unknown_ids:
-                        numeric_id = candidate
             
             if numeric_id is None or member is None:
                 continue
@@ -2163,39 +2155,43 @@ def calculate_awards(
         tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts
         
         # Add all Tribune endorsement levels
-        # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+        # TxN requires N times 50 QSOs total (cumulative from start, not reset)
+        # Tx2=100 total, Tx3=150 total, etc.
         tribune_endorsements = []
-        for n in range(2, 11):  # Tx2 through Tx10
-            required = n * 50
-            achieved = tribune_current >= required
-            tribune_endorsements.append(AwardProgress(
-                name=f"Tx{n}",
-                required=required,
-                current=tribune_current,
-                achieved=achieved,
-                description=f"Tribune x{n} - Contact {required} unique C/T/S members"
-            ))
         
-        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
-        # Tx15=750, Tx20=1000, Tx25=1250, etc.
-        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
-            required = n * 50
-            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
+        if tribune_achieved:  # Only show endorsements if Tribune is achieved
+            for n in range(2, 11):  # Tx2 through Tx10
+                required = n * 50
                 achieved = tribune_current >= required
                 tribune_endorsements.append(AwardProgress(
                     name=f"Tx{n}",
                     required=required,
                     current=tribune_current,
                     achieved=achieved,
-                    description=f"Tribune x{n} - Contact {required} unique C/T/S members"
+                    description=f"Tribune x{n} - Contact {required} unique C/T/S members total"
                 ))
+            
+            # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+            # Tx15=750, Tx20=1000, Tx25=1250, etc.
+            for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
+                required = n * 50
+                if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
+                    achieved = tribune_current >= required
+                    tribune_endorsements.append(AwardProgress(
+                        name=f"Tx{n}",
+                        required=required,
+                        current=tribune_current,
+                        achieved=achieved,
+                        description=f"Tribune x{n} - Contact {required} unique C/T/S members total"
+                    ))
         
         # Senator requires Tribune x8 (400 qualified) PLUS 200 contacts with T/S at QSO time
         senator_current = len(senator_qualified_members)
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
-        # Add Senator endorsement levels (SxN requires N times 200 T/S contacts)
+        # Add Senator endorsement levels (SxN requires N times 200 T/S contacts total)
+        # Similar to Tribune, these are cumulative totals, not reset counts
         senator_endorsements = []
         if senator_achieved:  # Only show endorsements if base Senator is achieved
             for n in range(2, 11):  # Sx2 through Sx10
@@ -2206,7 +2202,7 @@ def calculate_awards(
                     required=required,
                     current=senator_current,
                     achieved=achieved,
-                    description=f"Senator x{n} - Contact {required} unique T/S members (prerequisite: Tx8)"
+                    description=f"Senator x{n} - Contact {required} unique T/S members total"
                 ))
         
         progresses.append(AwardProgress(
