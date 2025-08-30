@@ -1,0 +1,16 @@
+# SKCC Awards Calculator - Required Dependencies
+# 
+# Core dependencies for running the SKCC awards calculator
+# Install with: pip install -r requirements.txt
+
+# HTTP requests for fetching SKCC roster data
+httpx==0.27.0
+
+# HTML parsing for SKCC roster pages
+beautifulsoup4==4.12.3
+
+# Development and testing (optional)
+pytest==8.3.2
+
+# Note: tkinter is included with Python standard library
+# Note: All other imports (threading, queue, asyncio, sys, csv, pathlib, typing, re, datetime, dataclasses, argparse, json) are Python standard library

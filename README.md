@@ -118,49 +118,120 @@ The program correctly implements these SKCC award requirements:
 
 ## Requirements
 
-- **Windows 10/11**
-- **Python 3.9 or later**
+- **Python 3.8 or higher** with tkinter support
 - **Internet connection** (for fetching SKCC roster)
 - **ADIF log file** (preferably from SKCC Logger for best accuracy)
+- **Operating System**: Windows, Linux, or macOS
 
 ## Installation
 
-### Step 1: Install Python
-1. Download Python from [python.org](https://www.python.org/downloads/)
+### Prerequisites
+- **Python 3.8 or higher** with tkinter support
+- **Internet connection** (for fetching SKCC roster)
+
+### Windows
+
+**Download Python:**
+1. Go to https://www.python.org/downloads/
 2. During installation, check "Add Python to PATH"
 3. Verify installation by opening Command Prompt and typing: `python --version`
 
-### Step 2: Download the Program
+**Install SKCC Awards Calculator:**
 1. Download or clone this repository
 2. Extract to a folder like `C:\skcc_awards\`
+3. Choose your installation method:
 
-### Step 3: Install Dependencies
-Run the setup script:
+**Option A: Simple Installation (Recommended)**
 ```cmd
-# Navigate to the project folder and run setup
+# Navigate to the project folder
 cd C:\skcc_awards
-setup.bat
+
+# Run simple installer
+install_simple.bat
 ```
 
-Or manually:
+**Option B: Full Setup with Virtual Environment**
 ```cmd
-# Create virtual environment
-python -m venv .venv
-
-# Activate virtual environment
-.venv\Scripts\activate
+# Navigate to the project folder
+cd C:\skcc_awards
 
 # Install required packages
 pip install -r requirements.txt
 ```
 
+### Linux/Mac
+
+**Install Python:**
+```bash
+# Ubuntu/Debian
+sudo apt install python3 python3-pip python3-tk
+
+# macOS (with Homebrew)
+brew install python-tk
+
+# Or download from: https://www.python.org/downloads/
+```
+
+**Install SKCC Awards Calculator:**
+```bash
+# Clone or download the repository
+git clone https://github.com/garyPenhook/skcc_awards_calculator.git
+cd skcc_awards_calculator
+
+# Run installer
+./install.sh
+
+# Or install manually
+pip3 install httpx beautifulsoup4
+```
+
+### Verify Installation
+Run the dependency checker to make sure everything is installed correctly:
+```bash
+# Windows
+check_dependencies.bat
+
+# Linux/Mac
+python3 check_dependencies.py
+```
+
+**What gets installed:**
+- `httpx` - For downloading SKCC roster data
+- `beautifulsoup4` - For parsing SKCC roster web pages
+- `pytest` - For running tests (optional)
+
+**Note**: All other functionality uses Python's built-in modules (no additional packages needed).
+
 ## How to Run
 
 ### Quick Start (Windows)
+
+**Option A: Simple Installation**
+1. Double-click **`install_simple.bat`** to install required packages
+2. Double-click **`run_gui_simple.bat`** to start the program
+
+**Option B: Full Setup**
 Double-click **`start.bat`** and select from menu:
 1. **Run GUI Application** - Launch the main Tkinter interface
 2. **Run Debug Mode** - Run debugging tools
 3. **Setup/Install Dependencies** - First-time setup
+
+### Quick Start (Linux/Mac)
+
+**GUI Mode:**
+```bash
+# Run the graphical interface
+python3 scripts/gui.py
+```
+
+**Command Line Mode:**
+```bash
+# Check command options
+python3 scripts/awards_check.py --help
+
+# Example: Process ADIF file
+python3 scripts/awards_check.py mylog.adi
+```
 
 ### Option 1: Graphical Interface (Recommended)
 ```cmd
