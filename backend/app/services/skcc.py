@@ -23,12 +23,17 @@ FALLBACK_ROSTER_URLS = [
 # Awards landing page (used for heuristic threshold parsing)
 DEFAULT_AWARDS_URL = "https://www.skccgroup.com/awards/"
 
-# Award thresholds - NOTE: Tribune endorsements are calculated separately
+# Award thresholds - NOTE: Tribune/Senator endorsements are calculated separately
 # Tribune Endorsement Rules:
 # - TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
 # - Higher endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
 # - Both parties must be Centurions at time of QSO for Tribune+ awards
 # - Only QSOs with Centurions/Tribunes/Senators (C/T/S suffix) count for Tribune
+# Senator Endorsement Rules:
+# - SxN requires N times 200 QSOs with T/S members (Sx2=400, Sx3=600, ..., Sx10=2000)
+# - Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
+# - Only QSOs with Tribunes/Senators (T/S suffix) count for Senator
+# - Both parties must be Centurions at time of QSO
 AWARD_THRESHOLDS: List[Tuple[str, int]] = [
     ("Centurion", 100),
     ("Tribune", 50),  # Tribune requires 50 contacts with C/T/S members
@@ -1905,6 +1910,8 @@ def calculate_awards(
       - Tribune Rule #2: Both parties must be Centurions at time of QSO for Tribune+ awards.
       - Tribune Endorsements: TxN requires N×50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
       - Tribune Higher Endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
+      - Senator Endorsements: SxN requires N×200 T/S QSOs (Sx2=400, Sx3=600, ..., Sx10=2000)
+      - Senator Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
       - Rule #6: Optionally enforces key type validation (straight key/bug/cootie).
     
     Parameters:
@@ -2177,6 +2184,20 @@ def calculate_awards(
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
+        # Add Senator endorsement levels (SxN requires N times 200 T/S contacts)
+        senator_endorsements = []
+        if senator_achieved:  # Only show endorsements if base Senator is achieved
+            for n in range(2, 11):  # Sx2 through Sx10
+                required = n * 200
+                achieved = senator_current >= required
+                senator_endorsements.append(AwardProgress(
+                    name=f"Sx{n}",
+                    required=required,
+                    current=senator_current,
+                    achieved=achieved,
+                    description=f"Senator x{n} - Contact {required} unique T/S members (prerequisite: Tx8)"
+                ))
+        
         progresses.append(AwardProgress(
             name="Tribune",
             required=50,
@@ -2196,6 +2217,9 @@ def calculate_awards(
             achieved=senator_achieved,
             description=senator_desc
         ))
+        
+        # Add Senator endorsement progress
+        progresses.extend(senator_endorsements)
     else:
         # Legacy counting for backwards compatibility - uses current status
         centurion_plus_members = set()
@@ -2244,6 +2268,20 @@ def calculate_awards(
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
+        # Add Senator endorsement levels (legacy mode)
+        senator_endorsements = []
+        if senator_achieved:  # Only show endorsements if base Senator is achieved
+            for n in range(2, 11):  # Sx2 through Sx10
+                required = n * 200
+                achieved = senator_current >= required
+                senator_endorsements.append(AwardProgress(
+                    name=f"Sx{n}",
+                    required=required,
+                    current=senator_current,
+                    achieved=achieved,
+                    description=f"Senator x{n} - Contact {required} unique T/S members (legacy: current status)"
+                ))
+        
         progresses.append(AwardProgress(
             name="Tribune",
             required=50,
@@ -2255,15 +2293,6 @@ def calculate_awards(
         # Add all Tribune endorsement progress
         progresses.extend(tribune_endorsements)
         
-        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members. Prerequisite: {'✓' if senator_prerequisite else '✗'}"
-        progresses.append(AwardProgress(
-            name="Senator",
-            required=200,
-            current=senator_current,
-            achieved=senator_achieved,
-            description=senator_desc
-        ))
-        
         senator_desc = f"Tribune x8 + 200 Tribunes/Senators (legacy: current status). Prerequisite: {'✓' if senator_prerequisite else '✗'}"
         progresses.append(AwardProgress(
             name="Senator",
@@ -2272,6 +2301,9 @@ def calculate_awards(
             achieved=senator_achieved,
             description=senator_desc
         ))
+        
+        # Add Senator endorsement progress
+        progresses.extend(senator_endorsements)
 
     endorsements: List[AwardEndorsement] = []
     if enable_endorsements:

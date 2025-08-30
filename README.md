@@ -57,6 +57,10 @@ The program correctly implements these SKCC award requirements:
    - Then contact 200 unique Tribune/Senator members (T/S suffix only)
    - Both parties must be Centurions (or higher) at time of QSO
    - Strict QSO-time validation of member status
+   - **Senator Endorsements**:
+     - **SxN**: Requires N×200 T/S contacts (Sx2=400, Sx3=600, ..., Sx10=2000)
+     - **Single-band endorsements**: Senator award for individual bands (up to Sx10 per band)
+     - Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
 
 4. **Special Call Exclusions**:
    - K9SKC (club call) and K3Y* (special event calls) excluded after December 1, 2009
