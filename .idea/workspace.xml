@@ -5,54 +5,12 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fc1c20ba-ae12-4942-aca6-7bf10bb9f02a" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/.github/workflows/ci.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/profiles_settings.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/modules.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/skcc_awards.iml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.mypy.ini" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.ruff.toml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/LICENSE" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/.dockerignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/api/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/api/routes/awards.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/api/routes/health.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/core/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/core/config.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/db/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/db/session.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/main.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/models/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/schemas/awards.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/schemas/health.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/services/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/services/skcc.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/__init__.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_adif.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_awards.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_centurion_rules.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_health.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_key_type_rule.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/app/tests/test_normalization.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/backend/requirements.txt" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/docs/architecture.md" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/.dockerignore" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/Dockerfile" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/index.html" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/package.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/App.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/src/main.tsx" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/tsconfig.json" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/frontend/vite.config.ts" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/infra/docker-compose.yml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/awards_check.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/dev_backend.sh" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/scripts/gui.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/requirements.txt" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/skcc_awards.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/skcc_awards.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/backend/app/services/skcc.py" beforeDir="false" afterPath="$PROJECT_DIR$/backend/app/services/skcc.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/awards_check.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/awards_check.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/scripts/gui.py" beforeDir="false" afterPath="$PROJECT_DIR$/scripts/gui.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -78,7 +36,7 @@
     &quot;ASKED_SHARE_PROJECT_CONFIGURATION_FILES&quot;: &quot;true&quot;,
     &quot;ModuleVcsDetector.initialDetectionPerformed&quot;: &quot;true&quot;,
     &quot;Python tests.Python tests in test_key_type_rule.py.executor&quot;: &quot;Run&quot;,
-    &quot;Python.gui.executor&quot;: &quot;Run&quot;,
+    &quot;Python.gui.executor&quot;: &quot;Profiler&quot;,
     &quot;Python.main.executor&quot;: &quot;Run&quot;,
     &quot;RunOnceActivity.ShowReadmeOnStart&quot;: &quot;true&quot;,
     &quot;RunOnceActivity.TerminalTabsStorage.copyFrom.TerminalArrangementManager.252&quot;: &quot;true&quot;,
@@ -91,14 +49,18 @@
     &quot;node.js.selected.package.eslint&quot;: &quot;(autodetect)&quot;,
     &quot;node.js.selected.package.tslint&quot;: &quot;(autodetect)&quot;,
     &quot;nodejs_package_manager_path&quot;: &quot;npm&quot;,
+    &quot;settings.editor.selected.configurable&quot;: &quot;preferences.pluginManager&quot;,
     &quot;vue.rearranger.settings.migration&quot;: &quot;true&quot;
   }
 }</component>
+  <component name="PyCoverageOptionsProvider">
+    <option name="myUseBundledCoveragePy" value="true" />
+  </component>
   <component name="SharedIndexes">
     <attachedChunks>
       <set>
-        <option value="bundled-js-predefined-d6986cc7102b-e03c56caf84a-JavaScript-PY-252.23892.515" />
-        <option value="bundled-python-sdk-7e47963ff851-f0eec537fc84-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.23892.515" />
+        <option value="bundled-js-predefined-d6986cc7102b-b598e85cdad2-JavaScript-PY-252.25557.130" />
+        <option value="bundled-python-sdk-1bde30d8e611-7b97d883f26b-com.jetbrains.pycharm.pro.sharedIndexes.bundled-PY-252.25557.130" />
       </set>
     </attachedChunks>
   </component>
@@ -112,15 +74,31 @@
       <workItem from="1756322307557" duration="4555000" />
       <workItem from="1756327469905" duration="404000" />
       <workItem from="1756330163711" duration="531000" />
+      <workItem from="1756494971675" duration="805000" />
+      <workItem from="1756496627815" duration="830000" />
+      <workItem from="1756497670486" duration="1865000" />
+      <workItem from="1756500031361" duration="1142000" />
+      <workItem from="1756515065665" duration="285000" />
     </task>
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
     <option name="version" value="3" />
   </component>
+  <component name="Vcs.Log.Tabs.Properties">
+    <option name="TAB_STATES">
+      <map>
+        <entry key="MAIN">
+          <value>
+            <State />
+          </value>
+        </entry>
+      </map>
+    </option>
+  </component>
   <component name="com.intellij.coverage.CoverageDataManagerImpl">
     <SUITE FILE_PATH="coverage/skcc_awards$.coverage" NAME=" Coverage Results" MODIFIED="1756326808909" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/skcc_awards$gui.coverage" NAME="gui Coverage Results" MODIFIED="1756326825229" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
+    <SUITE FILE_PATH="coverage/skcc_awards$gui.coverage" NAME="gui Coverage Results" MODIFIED="1756499041162" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/scripts" />
     <SUITE FILE_PATH="coverage/skcc_awards$main.coverage" NAME="main Coverage Results" MODIFIED="1756322609235" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="false" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$/backend/app" />
   </component>
 </project>

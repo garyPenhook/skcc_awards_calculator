@@ -8,7 +8,7 @@ A Python application for calculating SKCC (Straight Key Century Club) award prog
 The Straight Key Century Club offers three main awards based on contacting SKCC members:
 
 - **Centurion Award (100)**: Contact 100 unique SKCC members
-- **Tribune Award (500)**: Contact 500 unique SKCC members who have achieved Centurion/Tribune/Senator status
+- **Tribune Award (50)**: Contact 50 unique SKCC members who have achieved Centurion/Tribune/Senator status (both parties must be Centurions at time of QSO)
 - **Senator Award**: Achieve Tribune x8 (400 qualified contacts) + contact 200 unique Tribune/Senator members
 
 ### Key Features
@@ -36,14 +36,21 @@ The program correctly implements these SKCC award requirements:
    - All SKCC members count regardless of award status
    - QSOs must use approved key types (straight key, bug, side swiper)
 
-2. **Tribune Rules**:
-   - Contact 500 unique SKCC members who have C/T/S suffix
+2. **Tribune Rules** (Official SKCC Requirements):
+   - Contact 50 unique SKCC members who have C/T/S suffix
+   - **Both parties must be Centurions (or higher) at time of QSO**
    - Only members with Centurion/Tribune/Senator status count
    - Member must have had award status **at time of QSO**
+   - Valid after March 1, 2007
+   - Must use straight key, bug, or side swiper
+   - K9SKC (club call) and K3Y* (special event calls) excluded after October 1, 2008
+   - Each member can only be used once (duplicates not allowed)
+   - Endorsements available: Tx2 (100 contacts), Tx3 (150 contacts), up to Tx10 (500 contacts), then Tx15, Tx20, etc.
 
 3. **Senator Rules**:
    - Must first achieve Tribune x8 (400 contacts with C/T/S members)
    - Then contact 200 unique Tribune/Senator members (T/S suffix only)
+   - Both parties must be Centurions (or higher) at time of QSO
    - Strict QSO-time validation of member status
 
 4. **Special Call Exclusions**:
@@ -186,7 +193,7 @@ python scripts\debug_adif.py
 ### Award Progress Display
 ```
 Centurion: 100/100 (ACHIEVED) - Contact 100 unique SKCC members
-Tribune: 87/500 (in progress) - Contact 500 unique members who were C/T/S at QSO time
+Tribune: 45/50 (in progress) - Contact 50 unique C/T/S members (both parties must be C+ at QSO time)
 Tribune x8: 87/400 (in progress) - Contact 400 unique members who were C/T/S at QSO time
 Senator: 83/200 (in progress) - Tribune x8 + 200 members who were T/S at QSO time. Prerequisite: ✗
 ```

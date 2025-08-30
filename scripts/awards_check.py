@@ -25,11 +25,18 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'backend' / 'app'))
 
 from services.skcc import (
     fetch_member_roster,
-    parse_adif_files,
+    parse_adif,
     calculate_awards,
     Member,
 )
 
+def parse_adif_files(adif_contents: List[str]):
+    """Parse multiple ADIF file contents and combine QSOs."""
+    all_qsos = []
+    for content in adif_contents:
+        qsos = parse_adif(content)
+        all_qsos.extend(qsos)
+    return all_qsos
 
 def load_members_from_csv(path: Path) -> List[Member]:
     members: List[Member] = []

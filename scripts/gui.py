@@ -28,7 +28,7 @@ if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
 from services.skcc import (  # type: ignore  # noqa: E402
-    parse_adif_files,
+    parse_adif,
     fetch_member_roster,
     calculate_awards,
     Member,
@@ -290,9 +290,14 @@ class AwardsGUI:
     def _compute_thread(self) -> None:
         try:
             adif_contents = [p.read_text(encoding="utf-8", errors="ignore") for p in self.adif_paths]
-            qsos = parse_adif_files(adif_contents)
+            # Handle multiple ADIF files by parsing each and combining
+            all_qsos = []
+            for content in adif_contents:
+                qsos = parse_adif(content)
+                all_qsos.extend(qsos)
+
             result = calculate_awards(
-                qsos,
+                all_qsos,
                 self.members,
                 cw_only=True,
                 include_unknown_ids=self.include_unknown_var.get(),
