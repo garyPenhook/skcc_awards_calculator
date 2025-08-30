@@ -28,6 +28,18 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **Triple Key Awards**: Tracks progress using straight key, bug, and side swiper key types  
 ✅ **Rag Chew Awards**: Accumulates conversational CW minutes for RC1-RC10+ levels  
 ✅ **WAC Awards**: Worked All Continents awards with band and QRP endorsements  
+✅ **Enhanced Input Validation**: Regex-based validation for URLs, file types, and data integrity  
+✅ **Robust Error Handling**: Improved user feedback for invalid data and file formats  
+
+### New Validation Features
+
+The application now includes comprehensive input validation using regular expressions:
+
+- **URL Validation**: Validates roster URLs before attempting to fetch data
+- **File Extension Validation**: Ensures only valid ADIF files (.adi, .adif) are processed
+- **Member Data Validation**: Validates member numbers and callsign formats in CSV files
+- **Enhanced Error Reporting**: Provides detailed feedback about invalid data that was skipped
+- **Data Integrity Checks**: Prevents processing of malformed or incomplete data
 
 ### Award Rules Implemented
 
@@ -253,7 +265,9 @@ run_gui.bat        # Start the GUI
 
 **Using the GUI:**
 1. Click **"Add ADIF"** to select your log file(s)
+   - ⚠️ The program now validates file extensions and warns about non-ADIF files
 2. Click **"Load Roster (Live)"** to download current SKCC member roster
+   - ⚠️ Custom roster URLs are now validated before attempting to fetch
 3. Configure options:
    - ✅ **Enforce SKCC suffix rules** (recommended for accurate award validation)
    - ✅ **Use historical status** (uses QSO-time member status)
@@ -261,15 +275,11 @@ run_gui.bat        # Start the GUI
 4. Click **"Compute"** to calculate award progress
 5. View results in the **Awards**, **Endorsements**, **Canadian Maple**, **DX Awards**, **PFX Awards**, **Triple Key**, **Rag Chew**, and **WAC Awards** tabs
 
-**Result Tabs:**
-- **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
-- **Endorsements**: Shows band endorsement progress (SKCC is exclusively CW)  
-- **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
-- **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
-- **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
-- **Triple Key**: Shows progress for each key type category (SK, Bug, Side Swiper) separately
-- **Rag Chew**: Shows progress toward RC1-RC10+ awards based on accumulated conversation minutes
-- **WAC Awards**: Shows progress toward Worked All Continents awards with band and QRP endorsements
+**Enhanced Data Validation:**
+- **Invalid files**: Non-ADIF files are automatically filtered out with warnings
+- **URL validation**: Invalid roster URLs are rejected before network requests
+- **CSV validation**: Member data is validated with detailed error reporting
+- **Improved feedback**: Clear messages about what data was accepted or rejected
 
 ### Option 2: Command Line Interface
 ```cmd
@@ -362,6 +372,21 @@ pip install tk
 - Check that file contains `<EOR>` markers
 - Ensure CALL and QSO_DATE fields are present
 
+**"Invalid URL" error**
+- Ensure roster URL starts with http:// or https://
+- Check for typos in the URL
+- Leave URL field blank to use default SKCC roster URL
+
+**"Non-ADIF files ignored" warning**
+- Only .adi and .adif files are processed
+- Convert other log formats to ADIF before importing
+- Check file extensions are correct
+
+**CSV import warnings**
+- Invalid member numbers (non-numeric) are skipped
+- Empty rows and malformed data are automatically filtered
+- Warning messages show how many rows were skipped
+
 **Low matching QSO count**
 - Many QSOs may be with non-SKCC members (normal)
 - Check that SKCC numbers in log are correct
@@ -402,29 +427,62 @@ skcc_awards/
 
 ## Technical Details
 
+### Enhanced Input Validation
+
+The application now uses regular expressions for robust input validation:
+
+```python
+# URL validation pattern
+URL_PATTERN = re.compile(r'^https?://[^\s/$.?#].[^\s]*$', re.IGNORECASE)
+
+# ADIF file extension validation
+ADIF_EXTENSION_PATTERN = re.compile(r'\.(adi|adif)$', re.IGNORECASE)
+
+# Callsign format validation (basic amateur radio format)
+CALLSIGN_PATTERN = re.compile(r'^[A-Z0-9]{1,3}[0-9][A-Z0-9]{0,3}[A-Z]$')
+
+# Member number validation (digits only)
+MEMBER_NUMBER_PATTERN = re.compile(r'^\d+$')
+```
+
+### Validation Features
+
+- **Pre-processing validation**: Files and URLs are validated before processing
+- **Data sanitization**: Invalid data is filtered out with user notification
+- **Error recovery**: Application continues processing valid data when encountering invalid entries
+- **User feedback**: Clear messages about what was accepted, rejected, or requires attention
+
 ### Roster Processing
 - Fetches live data from SKCC membership roster
 - Parses HTML table with member numbers, calls, and suffixes
 - Handles call sign aliases and portable operations
 - Supports offline roster CSV files
+- **Enhanced**: URL validation before network requests
 
 ### Award Calculation Algorithm
 1. Parse ADIF file(s) for QSO records
-2. Validate each QSO against SKCC membership roster
-3. Apply SKCC award rules and date restrictions
-4. Track unique members per award category
-5. Calculate award progress and endorsements
+2. **Enhanced**: Validate file extensions and warn about non-ADIF files
+3. Validate each QSO against SKCC membership roster
+4. Apply SKCC award rules and date restrictions
+5. Track unique members per award category
+6. Calculate award progress and endorsements
 
-### QSO-Time Status Validation
-The program uses the SKCC field from your log to determine the member's award status **at the time of QSO**:
+### Data Processing Improvements
+- **Robust CSV parsing**: Invalid rows are skipped with detailed reporting
+- **File type checking**: Only valid ADIF files are processed
+- **Input sanitization**: Member numbers and callsigns are validated
+- **Error aggregation**: Multiple validation errors are collected and reported together
 
-```python
-# Example: SKCC field "660S" means member #660 had Senator status at QSO time
-if qso.skcc == "660S":
-    member_status_at_qso_time = "Senator"  # Counts for Tribune and Senator awards
-elif qso.skcc == "660":
-    member_status_at_qso_time = "No award"  # Counts only for Centurion award
-```
+## Recent Updates
+
+### Version 2.1.0 - Enhanced Input Validation
+- Added comprehensive regex-based input validation
+- Improved file type checking for ADIF files
+- Enhanced URL validation for roster sources
+- Better error handling and user feedback
+- Robust CSV parsing with data validation
+- Callsign format validation with warnings
+- Member number validation in CSV imports
 
 ## Contributing
 
@@ -433,6 +491,8 @@ This is an open-source project. Contributions welcome for:
 - Enhanced award rule validation
 - UI improvements
 - Bug fixes
+- Input validation improvements
+- Error handling enhancements
 
 ## Support
 
