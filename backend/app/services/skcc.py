@@ -30,7 +30,9 @@ DEFAULT_AWARDS_URL = "https://www.skccgroup.com/awards/"
 # - Both parties must be Centurions at time of QSO for Tribune+ awards
 # - Only QSOs with Centurions/Tribunes/Senators (C/T/S suffix) count for Tribune
 # Senator Endorsement Rules:
-# - SxN requires N times 200 QSOs with T/S members total (cumulative: Sx2=400, Sx3=600, ..., Sx10=2000)
+# - Prerequisites: Tribune x8 (400 C/T/S contacts) PLUS 200 separate T/S contacts
+# - Senator contacts are INDEPENDENT of Tribune x8 contacts (separate count)  
+# - SxN requires N times 200 T/S contacts total (cumulative: Sx2=400, Sx3=600, ..., Sx10=2000)
 # - Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
 # - Only QSOs with Tribunes/Senators (T/S suffix) count for Senator
 # - Both parties must be Centurions at time of QSO
@@ -1921,7 +1923,7 @@ def calculate_awards(
       - Tribune Endorsements: TxN requires N×50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
       - Tribune Higher Endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
       - Senator Endorsements: SxN requires N×200 T/S QSOs (Sx2=400, Sx3=600, ..., Sx10=2000)
-      - Senator Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
+      - Senator Prerequisite: Tribune x8 (400 C/T/S contacts) + 200 separate T/S contacts
       - Rule #6: Optionally enforces key type validation (straight key/bug/cootie).
     
     Parameters:
@@ -2185,13 +2187,14 @@ def calculate_awards(
                         description=f"Tribune x{n} - Contact {required} unique C/T/S members total"
                     ))
         
-        # Senator requires Tribune x8 (400 qualified) PLUS 200 contacts with T/S at QSO time
+        # Senator requires Tribune x8 (400 C/T/S qualified) PLUS 200 SEPARATE contacts with T/S at QSO time
+        # Note: Senator contacts are INDEPENDENT of Tribune x8 contacts per SKCC rules
         senator_current = len(senator_qualified_members)
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
         # Add Senator endorsement levels (SxN requires N times 200 T/S contacts total)
-        # Similar to Tribune, these are cumulative totals, not reset counts
+        # Senator contacts are separate/independent from Tribune x8 contacts
         senator_endorsements = []
         if senator_achieved:  # Only show endorsements if base Senator is achieved
             for n in range(2, 11):  # Sx2 through Sx10
@@ -2202,7 +2205,7 @@ def calculate_awards(
                     required=required,
                     current=senator_current,
                     achieved=achieved,
-                    description=f"Senator x{n} - Contact {required} unique T/S members total"
+                    description=f"Senator x{n} - Contact {required} unique T/S members (separate from Tx8)"
                 ))
         
         progresses.append(AwardProgress(
@@ -2216,7 +2219,7 @@ def calculate_awards(
         # Add all Tribune endorsement progress
         progresses.extend(tribune_endorsements)
         
-        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members. Prerequisite: {'✓' if senator_prerequisite else '✗'}"
+        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members (separate contacts). Prerequisite: {'✓' if senator_prerequisite else '✗'}"
         progresses.append(AwardProgress(
             name="Senator",
             required=200,
@@ -2271,6 +2274,7 @@ def calculate_awards(
                 ))
         
         # Senator requires Tribune x8 (400 C/T/S) PLUS 200 contacts with T/S only
+        # Note: In legacy mode, counting T/S members by current status (not historical)
         senator_current = len(tribune_senator_members)
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
