@@ -90,12 +90,13 @@ The program correctly implements these SKCC award requirements:
    - Valid after January 1, 2013; both parties must be SKCC members at time of QSO
 
 8. **Triple Key Award**:
-   - **Requirement**: Contact 300 different SKCC members using all three key types:
-     - 100 contacts using straight key (SK)
-     - 100 contacts using bug
-     - 100 contacts using sideswiper (cootie)
-   - **Key Type Detection**: Recognizes "SK", "STRAIGHT", "BUG", "SIDESWIPER", "COOTIE"
-   - **Exchange**: Must mention key type used during QSO (abbreviations like "SK", "BUG" accepted)
+   - **Requirement**: Contact 300 different SKCC members using all three key type categories:
+     - 100 contacts using SK (Straight Key)
+     - 100 contacts using Bug (semi-automatic key) 
+     - 100 contacts using Side Swiper (Cootie)
+   - **Key Type Detection**: Recognizes "SK", "STRAIGHT", "BUG", "SEMI", "SIDESWIPER", "COOTIE", "SS"
+   - **Exchange**: Must mention key type used during QSO (abbreviations like "SK", "BUG", "SS" accepted)
+   - **Categories**: Shows separate progress for each key type category
    - Valid after November 10, 2018; both parties must be SKCC members at time of QSO
 
 9. **Rag Chew Award**:
@@ -266,7 +267,7 @@ run_gui.bat        # Start the GUI
 - **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
 - **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
 - **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring
-- **Triple Key**: Shows progress toward Triple Key Award using straight key, bug, and sideswiper
+- **Triple Key**: Shows progress for each key type category (SK, Bug, Side Swiper) separately
 - **Rag Chew**: Shows progress toward RC1-RC10+ awards based on accumulated conversation minutes
 - **WAC Awards**: Shows progress toward Worked All Continents awards with band and QRP endorsements
 

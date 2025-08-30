@@ -1461,14 +1461,16 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     Calculate SKCC Triple Key Award progress.
     
     Rules:
-    - Contact 300 different SKCC members total:
-      - 100 using straight key
-      - 100 using bug/semi-automatic
-      - 100 using sideswiper/cootie
+    - Contact 300 different SKCC members total across three key type categories:
+      - 100 using SK (Straight Key)
+      - 100 using Bug (semi-automatic key)
+      - 100 using Side Swiper (Cootie)
     - Valid after November 10, 2018
     - Both parties must be SKCC members at time of QSO
-    - Key type must be specified in QSO record
+    - Key type must be specified in QSO record (comment or key_type field)
+    - Each member can only count once per key type category
     """
+    from datetime import date
     # Build member lookup with all aliases
     member_by_call = {}
     for member in members:
@@ -1480,15 +1482,15 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     bug_members = set()
     sideswiper_members = set()
     
-    # Define key type mappings - simplified to core SKCC key types
+    # Define key type mappings - comprehensive SKCC key type detection
     STRAIGHT_KEY_TYPES = {
-        "SK", "STRAIGHT"
+        "SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY"
     }
     BUG_TYPES = {
-        "BUG"
+        "BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC"
     }
     SIDESWIPER_TYPES = {
-        "SIDESWIPER", "COOTIE"
+        "SIDESWIPER", "SIDE SWIPER", "COOTIE", "SS", "SWIPER"
     }
     
     for qso in qsos:
@@ -1502,16 +1504,25 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
             continue
             
         # Valid after November 10, 2018
-        if qso.date and qso.date < "20181110":
-            continue
+        if qso.date:
+            if isinstance(qso.date, date):
+                qso_date_str = qso.date.strftime("%Y%m%d")
+            else:
+                qso_date_str = str(qso.date).replace("-", "")
+            if qso_date_str < "20181110":
+                continue
             
         # Must have QSO date to verify member status
         if not qso.date:
             continue
             
         # Check if member was valid at QSO time
-        if member.join_date and qso.date < member.join_date:
-            continue
+        if member.join_date:
+            if isinstance(qso.date, date) and isinstance(member.join_date, date):
+                if qso.date < member.join_date:
+                    continue
+            elif str(qso.date).replace("-", "") < str(member.join_date).replace("-", ""):
+                continue
             
         # Extract key type from various possible fields
         key_type = None
@@ -1550,7 +1561,7 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     # Straight Key Award
     sk_count = len(straight_key_members)
     awards.append(TripleKeyAward(
-        name="Triple Key - Straight Key",
+        name="SK (Straight Key)",
         key_type="straight",
         threshold=100,
         current_count=sk_count,
@@ -1562,7 +1573,7 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     # Bug Award
     bug_count = len(bug_members)
     awards.append(TripleKeyAward(
-        name="Triple Key - Bug",
+        name="Bug",
         key_type="bug",
         threshold=100,
         current_count=bug_count,
@@ -1571,10 +1582,10 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
         percentage=(bug_count / 100.0) * 100
     ))
     
-    # Sideswiper Award
+    # Side Swiper (Cootie) Award
     ss_count = len(sideswiper_members)
     awards.append(TripleKeyAward(
-        name="Triple Key - Sideswiper",
+        name="Side Swiper (Cootie)",
         key_type="sideswiper",
         threshold=100,
         current_count=ss_count,
@@ -1588,7 +1599,7 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     total_unique = len(straight_key_members | bug_members | sideswiper_members)
     
     awards.append(TripleKeyAward(
-        name="Triple Key Award",
+        name="Triple Key Award (All 3 Types)",
         key_type="overall",
         threshold=300,
         current_count=total_unique,
