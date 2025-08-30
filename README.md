@@ -47,7 +47,10 @@ The program correctly implements these SKCC award requirements:
    - Must use straight key, bug, or side swiper
    - K9SKC (club call) and K3Y* (special event calls) excluded after October 1, 2008
    - Each member can only be used once (duplicates not allowed)
-   - Endorsements available: Tx2 (100 contacts), Tx3 (150 contacts), up to Tx10 (500 contacts), then Tx15, Tx20, etc.
+   - **Tribune Endorsements**: 
+     - **TxN**: Requires N×50 contacts (Tx2=100, Tx3=150, ..., Tx10=500)
+     - **Higher Endorsements**: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
+     - All contacts must meet Tribune requirements (C/T/S members, mutual Centurion status)
 
 3. **Senator Rules**:
    - Must first achieve Tribune x8 (400 contacts with C/T/S members)

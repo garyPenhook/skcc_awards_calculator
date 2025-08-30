@@ -23,7 +23,12 @@ FALLBACK_ROSTER_URLS = [
 # Awards landing page (used for heuristic threshold parsing)
 DEFAULT_AWARDS_URL = "https://www.skccgroup.com/awards/"
 
-# Simplified award thresholds (actual SKCC program has additional awards / endorsements)
+# Award thresholds - NOTE: Tribune endorsements are calculated separately
+# Tribune Endorsement Rules:
+# - TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+# - Higher endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
+# - Both parties must be Centurions at time of QSO for Tribune+ awards
+# - Only QSOs with Centurions/Tribunes/Senators (C/T/S suffix) count for Tribune
 AWARD_THRESHOLDS: List[Tuple[str, int]] = [
     ("Centurion", 100),
     ("Tribune", 50),  # Tribune requires 50 contacts with C/T/S members
@@ -1891,13 +1896,17 @@ def calculate_awards(
     thresholds: optional override list of (name, required). Defaults to AWARD_THRESHOLDS.
     Endorsements: For each award threshold, if unique member count on a band
     meets that threshold, an endorsement record is produced.
+    
     Implements SKCC Award rules:
       - Centurion Rule #2: Excludes special event / club calls (K9SKC, K3Y*) on/after 20091201.
       - Centurion Rule #3: Requires both parties be members at QSO date if join dates provided.
       - Centurion Rule #4: Counts only unique call signs (each operator only counted once).
       - Tribune Rule #1: For Tribune (50+), only count QSOs with Centurions/Tribunes/Senators (C/T/S suffix).
       - Tribune Rule #2: Both parties must be Centurions at time of QSO for Tribune+ awards.
+      - Tribune Endorsements: TxN requires N×50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+      - Tribune Higher Endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
       - Rule #6: Optionally enforces key type validation (straight key/bug/cootie).
+    
     Parameters:
         enforce_suffix_rules: if True, enforces SKCC suffix requirements for Tribune/Senator awards
         include_unknown_ids: if True, accept numeric SKCC IDs parsed from log even when not present in roster
@@ -2135,13 +2144,37 @@ def calculate_awards(
         tribune_current = len(tribune_qualified_members)
         tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts
         
-        # Tribune x2 requires 100 contacts with members who were C/T/S at QSO time
-        tribune_x2_current = len(tribune_qualified_members)
-        tribune_x2_achieved = tribune_x2_current >= 100
+        # Add all Tribune endorsement levels
+        # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+        tribune_endorsements = []
+        for n in range(2, 11):  # Tx2 through Tx10
+            required = n * 50
+            achieved = tribune_current >= required
+            tribune_endorsements.append(AwardProgress(
+                name=f"Tx{n}",
+                required=required,
+                current=tribune_current,
+                achieved=achieved,
+                description=f"Tribune x{n} - Contact {required} unique C/T/S members"
+            ))
+        
+        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+        # Tx15=750, Tx20=1000, Tx25=1250, etc.
+        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
+            required = n * 50
+            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
+                achieved = tribune_current >= required
+                tribune_endorsements.append(AwardProgress(
+                    name=f"Tx{n}",
+                    required=required,
+                    current=tribune_current,
+                    achieved=achieved,
+                    description=f"Tribune x{n} - Contact {required} unique C/T/S members"
+                ))
         
         # Senator requires Tribune x8 (400 qualified) PLUS 200 contacts with T/S at QSO time
         senator_current = len(senator_qualified_members)
-        senator_prerequisite = tribune_x2_current >= 400  # Tribune x8 = 400 contacts
+        senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
         progresses.append(AwardProgress(
@@ -2152,15 +2185,10 @@ def calculate_awards(
             description="Contact 50 unique C/T/S members (both parties must be C+ at QSO time)"
         ))
         
-        progresses.append(AwardProgress(
-            name="Tribune x8",
-            required=400,
-            current=tribune_x2_current,
-            achieved=tribune_x2_current >= 400,
-            description="Contact 400 unique members who were C/T/S at QSO time (prerequisite for Senator)"
-        ))
+        # Add all Tribune endorsement progress
+        progresses.extend(tribune_endorsements)
         
-        senator_desc = f"Tribune x8 + 200 members who were T/S at QSO time. Prerequisite: {'✓' if senator_prerequisite else '✗'}"
+        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members. Prerequisite: {'✓' if senator_prerequisite else '✗'}"
         progresses.append(AwardProgress(
             name="Senator",
             required=200,
@@ -2184,13 +2212,36 @@ def calculate_awards(
         tribune_current = len(centurion_plus_members)
         tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts with C/T/S
         
-        # Tribune x8 requires 400 contacts with C/T/S members
-        tribune_x8_current = len(centurion_plus_members)
-        tribune_x8_achieved = tribune_x8_current >= 400
+        # Add all Tribune endorsement levels (legacy mode)
+        # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
+        tribune_endorsements = []
+        for n in range(2, 11):  # Tx2 through Tx10
+            required = n * 50
+            achieved = tribune_current >= required
+            tribune_endorsements.append(AwardProgress(
+                name=f"Tx{n}",
+                required=required,
+                current=tribune_current,
+                achieved=achieved,
+                description=f"Tribune x{n} - Contact {required} unique C/T/S members (legacy: current status)"
+            ))
+        
+        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
+            required = n * 50
+            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
+                achieved = tribune_current >= required
+                tribune_endorsements.append(AwardProgress(
+                    name=f"Tx{n}",
+                    required=required,
+                    current=tribune_current,
+                    achieved=achieved,
+                    description=f"Tribune x{n} - Contact {required} unique C/T/S members (legacy: current status)"
+                ))
         
         # Senator requires Tribune x8 (400 C/T/S) PLUS 200 contacts with T/S only
         senator_current = len(tribune_senator_members)
-        senator_prerequisite = tribune_x8_achieved
+        senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
         
         progresses.append(AwardProgress(
@@ -2201,12 +2252,16 @@ def calculate_awards(
             description="Contact 50 unique Centurions/Tribunes/Senators (legacy: current status)"
         ))
         
+        # Add all Tribune endorsement progress
+        progresses.extend(tribune_endorsements)
+        
+        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members. Prerequisite: {'✓' if senator_prerequisite else '✗'}"
         progresses.append(AwardProgress(
-            name="Tribune x8",
-            required=400,
-            current=tribune_x8_current,
-            achieved=tribune_x8_achieved,
-            description="Contact 400 unique Centurions/Tribunes/Senators (legacy: current status)"
+            name="Senator",
+            required=200,
+            current=senator_current,
+            achieved=senator_achieved,
+            description=senator_desc
         ))
         
         senator_desc = f"Tribune x8 + 200 Tribunes/Senators (legacy: current status). Prerequisite: {'✓' if senator_prerequisite else '✗'}"
