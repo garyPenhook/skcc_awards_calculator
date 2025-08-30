@@ -2,6 +2,8 @@
 
 A Python application for calculating SKCC (Straight Key Century Club) award progress from ADIF log files. This program validates QSOs against the official SKCC member roster and accurately calculates progress toward Centurion, Tribune, and Senator awards.
 
+**Note**: SKCC is exclusively for Morse code (CW) operations. All QSOs are assumed to be CW mode contacts.
+
 ## What This Program Does
 
 ### SKCC Award Overview
@@ -19,7 +21,7 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **ADIF Parsing**: Supports standard ADIF log files from popular logging software  
 ✅ **Historical Accuracy**: Correctly handles award progression based on QSO timestamps  
 ✅ **Multiple Interfaces**: Both GUI and command-line interfaces available  
-✅ **Award Endorsements**: Calculates band and mode endorsements  
+✅ **Award Endorsements**: Calculates band endorsements (SKCC is exclusively CW/Morse code)  
 ✅ **Canadian Maple Awards**: Calculates geographic-based awards for Canadian provinces/territories  
 ✅ **DX Awards**: Supports both DXQ (QSO-based) and DXC (country-based) international awards  
 ✅ **PFX Awards**: Calculates prefix-based awards (Px1-Px10) with call sign prefix scoring  
@@ -182,7 +184,7 @@ run_gui.bat        # Start the GUI
 
 **Result Tabs:**
 - **Awards**: Shows progress toward Centurion (100), Tribune (500), and Senator awards
-- **Endorsements**: Shows band and mode endorsement progress  
+- **Endorsements**: Shows band endorsement progress (SKCC is exclusively CW)  
 - **Canadian Maple**: Shows progress toward Yellow/Orange/Red/Gold Canadian Maple Awards
 - **DX Awards**: Shows progress toward DXQ/DXC international awards with QRP endorsements
 - **PFX Awards**: Shows progress toward Px1-Px10 prefix awards based on call sign prefix scoring

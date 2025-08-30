@@ -142,15 +142,15 @@ class AwardCheckResult:
     matched_qsos: int
     unmatched_calls: List[str]
     thresholds_used: List[Tuple[str, int]]
-    total_cw_qsos: int  # New: count of QSOs after CW-only filtering
+    total_cw_qsos: int  # Total count of QSOs (SKCC is exclusively CW/Morse code)
 
 @dataclass
 class AwardEndorsement:
     award: str          # Base award name (e.g., Centurion)
-    category: str       # 'band' or 'mode'
-    value: str          # e.g. '40M', '20M', 'CW'
+    category: str       # 'band' (mode not applicable - SKCC is CW-only)
+    value: str          # e.g. '40M', '20M' (band endorsements)
     required: int       # Threshold required (same as base award requirement)
-    current: int        # Unique SKCC members worked on this band/mode
+    current: int        # Unique SKCC members worked on this band
     achieved: bool
 
 # Canadian Maple Award configuration
@@ -1878,17 +1878,18 @@ def calculate_awards(
     members: Sequence[Member],
     thresholds: Sequence[Tuple[str, int]] | None = None,
     enable_endorsements: bool = True,
-    cw_only: bool = True,
     enforce_key_type: bool = False,
     allowed_key_types: Sequence[str] | None = None,
     treat_missing_key_as_valid: bool = True,
     include_unknown_ids: bool = False,
     enforce_suffix_rules: bool = True,
 ) -> AwardCheckResult:
-    """Calculate award progress plus (optionally) band/mode endorsements.
+    """Calculate award progress plus (optionally) band endorsements.
+
+    SKCC is exclusively for Morse code (CW) operations - all QSOs are assumed to be CW.
 
     thresholds: optional override list of (name, required). Defaults to AWARD_THRESHOLDS.
-    Endorsements: For each award threshold, if unique member count on a band or mode
+    Endorsements: For each award threshold, if unique member count on a band
     meets that threshold, an endorsement record is produced.
     Implements SKCC Award rules:
       - Centurion Rule #2: Excludes special event / club calls (K9SKC, K3Y*) on/after 20091201.
@@ -1972,9 +1973,10 @@ def calculate_awards(
 
     filtered_qsos: List[QSO] = []
     for q in qsos:
-        if cw_only:
-            if not q.mode or "CW" not in q.mode.upper():
-                continue
+        # SKCC is exclusively CW/Morse code - exclude any non-CW modes (data cleanup)
+        if q.mode and q.mode.upper() not in ["CW", "A1A"]:
+            continue
+            
         # Exclude disallowed special calls (rule #2)
         if is_disallowed_special(q.call, q.date):
             continue

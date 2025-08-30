@@ -5,7 +5,7 @@ Features:
 - Select one or more ADIF files
 - Optionally load a roster CSV (number,call) for offline work
 - Fetch live roster from SKCC site
-- Compute awards + band/mode endorsements
+- Compute awards + band endorsements
 - Display results in treeviews
 
 Note: Network fetch is run in a background thread to avoid freezing the UI.
@@ -299,7 +299,6 @@ class AwardsGUI:
             result = calculate_awards(
                 all_qsos,
                 self.members,
-                cw_only=True,
                 include_unknown_ids=self.include_unknown_var.get(),
                 enforce_key_type=self.enforce_key_var.get(),
                 treat_missing_key_as_valid=self.missing_key_valid_var.get(),
@@ -444,7 +443,7 @@ class AwardsGUI:
             self.unique_var.set(
                 f"Unique Members Worked: {result.unique_members_worked} | QSOs matched/total: {result.matched_qsos}/{result.total_qsos} | Unmatched calls: {len(result.unmatched_calls)}"
             )
-            self.status_var.set("Computation complete. (CW-only QSOs considered)")
+            self.status_var.set("Computation complete. (SKCC - Morse code/CW operation)")
         elif kind == "error":
             self.status_var.set(item[1])
             messagebox.showerror("Error", item[1])
