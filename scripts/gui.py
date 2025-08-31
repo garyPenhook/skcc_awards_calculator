@@ -292,6 +292,7 @@ class AwardsGUI:
             valid_files_added = 0
             
             for p in paths:
+                path_obj = None
                 try:
                     path_obj = Path(p)
                     
@@ -334,7 +335,7 @@ class AwardsGUI:
                 except FileValidationError as e:
                     invalid_files.append(str(e))
                 except Exception as e:
-                    invalid_files.append(f"{path_obj.name if 'path_obj' in locals() else p} (error: {e})")
+                    invalid_files.append(f"{path_obj.name if path_obj else p} (error: {e})")
             
             if invalid_files:
                 messagebox.showwarning("File Validation Issues", f"Issues encountered:\n" + "\n".join(invalid_files))
