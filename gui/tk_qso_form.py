@@ -25,6 +25,10 @@ class QSOForm(ttk.Frame):
         self.roster_manager = RosterManager()
         self.roster_status = "Initializing..."
         
+        # Option to control roster update behavior
+        # Set to False if you want to use cached roster (faster startup)
+        self.force_roster_update = True
+        
         # Apply theme to the parent window
         if master:
             theme_manager.apply_theme(master)
@@ -72,11 +76,16 @@ class QSOForm(ttk.Frame):
         self.call_entry.grid(row=r, column=1, sticky="w", padx=6, pady=4)
         self.call_var.trace_add('write', self._on_callsign_change)
         
+        # Add focus out event to hide autocomplete
+        self.call_entry.bind('<FocusOut>', self._on_callsign_focus_out)
+        self.call_entry.bind('<Escape>', self._on_escape_key)
+        
         # Auto-complete listbox (initially hidden)
         self.autocomplete_frame = ttk.Frame(self)
         self.autocomplete_listbox = tk.Listbox(self.autocomplete_frame, height=5, width=30)
         self.autocomplete_listbox.bind('<Double-Button-1>', self._select_autocomplete)
         self.autocomplete_listbox.bind('<Return>', self._select_autocomplete)
+        self.autocomplete_listbox.bind('<Escape>', self._on_escape_key)
         
         r += 1
 
@@ -208,9 +217,20 @@ class QSOForm(ttk.Frame):
                 
                 status = self.roster_manager.get_status()
                 
-                if status['needs_update']:
+                # Check if we should force update or use normal logic
+                if self.force_roster_update:
+                    # Always attempt to update roster on QSO logger startup for current data
+                    self.after(0, lambda: self.roster_status_var.set("Downloading latest SKCC roster..."))
+                    force_update = True
+                elif status['needs_update']:
+                    # Use normal 24-hour update logic
                     self.after(0, lambda: self.roster_status_var.set("Downloading SKCC roster..."))
-                    
+                    force_update = False
+                else:
+                    # Roster is current, just display status
+                    force_update = None
+                
+                if force_update is not None:
                     # Run the async update in a new event loop
                     import asyncio
                     loop = asyncio.new_event_loop()
@@ -219,15 +239,26 @@ class QSOForm(ttk.Frame):
                     def progress_callback(message):
                         self.after(0, lambda msg=message: self.roster_status_var.set(msg))
                     
+                    # Update with appropriate force flag
                     success, message = loop.run_until_complete(
-                        self.roster_manager.ensure_roster_updated(progress_callback=progress_callback)
+                        self.roster_manager.ensure_roster_updated(force=force_update, progress_callback=progress_callback)
                     )
                     loop.close()
                     
                     if not success:
-                        self.after(0, lambda: self.roster_status_var.set(f"Roster error: {message}"))
+                        # If update fails, fall back to existing data
+                        self.after(0, lambda: self.roster_status_var.set("Using cached roster data"))
+                        # Still show the cached data status
+                        status = self.roster_manager.get_status()
+                        member_count = status.get('member_count', 0)
+                        if member_count > 0:
+                            final_message = f"Cached roster - {member_count:,} members"
+                            self.after(0, lambda: self.roster_status_var.set(final_message))
+                        else:
+                            self.after(0, lambda: self.roster_status_var.set(f"Roster error: {message}"))
                         return
-                        
+                
+                # Get final status and display
                 status = self.roster_manager.get_status()
                 member_count = status.get('member_count', 0)
                 last_update = status.get('last_update', 'Never')
@@ -298,6 +329,16 @@ class QSOForm(ttk.Frame):
     def _hide_autocomplete(self):
         """Hide the autocomplete listbox."""
         self.autocomplete_frame.grid_remove()
+
+    def _on_callsign_focus_out(self, event=None):
+        """Hide autocomplete when callsign field loses focus."""
+        # Small delay to allow selection to complete
+        self.after(100, self._hide_autocomplete)
+
+    def _on_escape_key(self, event=None):
+        """Hide autocomplete when Escape is pressed."""
+        self._hide_autocomplete()
+        return 'break'  # Prevent further processing
 
     def _select_autocomplete(self, event=None):
         """Select an autocomplete suggestion."""
@@ -564,6 +605,11 @@ def main():
             "• Click 'New' to create a new ADIF file\n" +
             "• Fill in QSO details and click 'Save QSO'\n" +
             "• Type callsigns to see auto-complete suggestions\n\n" +
+            "Features:\n" +
+            "• Downloads latest SKCC roster on startup\n" +
+            "• Auto-complete with 30,000+ SKCC members\n" +
+            "• Recent QSOs view at bottom\n" +
+            "• Proper UTC time handling\n\n" +
             "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
     
     root.after(2000, show_help)  # Show help after 2 seconds
