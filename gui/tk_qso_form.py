@@ -12,11 +12,17 @@ if str(ROOT) not in sys.path:
 from models.key_type import KeyType, DISPLAY_LABELS, normalize
 from models.qso import QSO
 from adif_io.adif_writer import append_record
+from utils.theme_manager import theme_manager
 
 class QSOForm(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master, padding=12)
         self.grid(sticky="nsew")
+        
+        # Apply theme to the parent window
+        if master:
+            theme_manager.apply_theme(master)
+            
         self._build_ui()
 
     def _build_ui(self):
@@ -100,7 +106,13 @@ class QSOForm(ttk.Frame):
         # Buttons
         btn_row = ttk.Frame(self); btn_row.grid(row=r, column=0, columnspan=3, pady=(12, 0))
         ttk.Button(btn_row, text="Save QSO", command=self._save).grid(row=0, column=0, padx=6)
-        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=1, padx=6)
+        
+        # Theme toggle button
+        current_theme = "🌙" if theme_manager.current_theme == "light" else "☀️"
+        self.theme_button = ttk.Button(btn_row, text=current_theme, width=3, command=self._toggle_theme)
+        self.theme_button.grid(row=0, column=1, padx=6)
+        
+        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=2, padx=6)
 
         # Resize behavior
         for c in range(3):
@@ -159,6 +171,18 @@ class QSOForm(ttk.Frame):
 
     def _quit(self):
         self.winfo_toplevel().destroy()
+
+    def _toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        try:
+            new_theme = theme_manager.toggle_theme()
+            theme_manager.apply_theme(self.winfo_toplevel())
+            
+            # Update theme button icon
+            new_icon = "🌙" if new_theme == "light" else "☀️"
+            self.theme_button.configure(text=new_icon)
+        except Exception as e:
+            messagebox.showerror("Theme Error", f"Failed to toggle theme: {e}")
 
 def main():
     root = tk.Tk()

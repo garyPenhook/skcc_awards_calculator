@@ -31,6 +31,14 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **Enhanced Input Validation**: Regex-based validation for URLs, file types, and data integrity  
 ✅ **Robust Error Handling**: Improved user feedback for invalid data and file formats  
 ✅ **ADIF 3.1.5 QSO Logging**: Built-in QSO logger creates ADIF files without requiring external logging software  
+✅ **Dark Mode Support**: Toggle between light and dark themes with persistent preferences  
+
+### User Interface Features
+
+🎨 **Dark Mode**: Click the theme toggle button (🌙/☀️) to switch between light and dark themes  
+🎨 **Persistent Preferences**: Theme choice is automatically saved and restored  
+🎨 **Consistent Theming**: Both main GUI and QSO logger support dark mode  
+🎨 **Professional Appearance**: Modern styling with improved readability in both themes  
 
 ### QSO Logging Features
 
@@ -47,6 +55,50 @@ The application now includes a complete QSO logging system that writes ADIF 3.1.
 **Launch QSO Logger**:
 - **GUI**: Run `run_qso_logger.bat` or `python -m gui.tk_qso_form`
 - **CLI**: `python -m cli.qso --help` for command-line options
+
+### SKCC Roster Integration
+
+The application now features live SKCC member roster integration for efficient logging:
+
+🎯 **Auto-Complete Callsigns**: Type a callsign prefix and see matching SKCC members  
+🎯 **Auto-Fill SKCC Numbers**: Automatically populates SKCC member numbers from the roster  
+🎯 **Live Roster Updates**: Downloads current SKCC member roster on startup  
+🎯 **Local Database**: Maintains SQLite database for fast lookups and offline operation  
+🎯 **Smart Caching**: Updates roster only when needed (24-hour default interval)  
+🎯 **Background Updates**: Roster downloads happen in background without blocking UI  
+🎯 **Portable Detection**: Handles portable indicators (/P, /M) in callsign matching  
+🎯 **Configuration System**: Saves your station info and preferences automatically  
+
+**New Roster-Enabled QSO Logger**:
+- **GUI**: Run `python test_roster_qso.py` to launch the enhanced QSO logger
+- **Roster Sync**: Use `python scripts/roster_sync.py` for command-line roster management
+
+**Roster Management Commands**:
+```bash
+# Update roster from SKCC website
+python scripts/roster_sync.py sync
+
+# Force roster update
+python scripts/roster_sync.py sync --force
+
+# Look up a specific callsign
+python scripts/roster_sync.py lookup W1AW
+
+# Search for callsigns by prefix
+python scripts/roster_sync.py search W1
+
+# Show roster database status
+python scripts/roster_sync.py status
+
+# Clean up database locks (if having issues)
+python scripts/roster_sync.py cleanup
+```
+
+**Troubleshooting Roster Issues**:
+- If you get "database is locked" errors, run the cleanup command
+- The roster is cached for 24 hours by default to avoid unnecessary downloads
+- Use `--force` flag to update roster even if it's current
+- The database is stored in `~/.skcc_awards/roster.db`
 
 ### New Validation Features
 
@@ -297,6 +349,11 @@ run_gui.bat        # Start the GUI
 - **URL validation**: Invalid roster URLs are rejected before network requests
 - **CSV validation**: Member data is validated with detailed error reporting
 - **Improved feedback**: Clear messages about what data was accepted or rejected
+
+**User Interface:**
+- **Dark Mode**: Click the 🌙/☀️ button to toggle between light and dark themes
+- **Theme Persistence**: Your theme choice is automatically saved and restored
+- **Modern Styling**: Professional appearance with improved readability
 
 ### Option 2: Command Line Interface
 ```cmd

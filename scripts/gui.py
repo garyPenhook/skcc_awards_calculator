@@ -28,12 +28,18 @@ BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
+# Add utils to path for theme manager
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from services.skcc import (  # type: ignore  # noqa: E402
     parse_adif,
     fetch_member_roster,
     calculate_awards,
     Member,
 )
+
+from utils.theme_manager import theme_manager  # type: ignore  # noqa: E402
 
 APP_TITLE = "SKCC Awards GUI"
 
@@ -111,6 +117,9 @@ class AwardsGUI:
         self.enforce_suffix_var = tk.BooleanVar(value=True)  # Default to True for proper SKCC rules
         self.historical_status_var = tk.BooleanVar(value=True)  # Default to True for QSO-time status
 
+        # Apply initial theme
+        theme_manager.apply_theme(self.root)
+
         self._build_widgets()
 
         # Thread communication
@@ -129,6 +138,12 @@ class AwardsGUI:
         ttk.Button(top_frame, text="Load Roster (Live)", command=self.load_roster_live).pack(side=tk.LEFT, padx=8)
         ttk.Button(top_frame, text="Load Roster CSV", command=self.load_roster_csv).pack(side=tk.LEFT, padx=2)
         ttk.Button(top_frame, text="Compute", command=self.compute).pack(side=tk.LEFT, padx=16)
+        
+        # Theme toggle button
+        current_theme = "🌙" if theme_manager.current_theme == "light" else "☀️"
+        self.theme_button = ttk.Button(top_frame, text=current_theme, width=3, command=self.toggle_theme)
+        self.theme_button.pack(side=tk.RIGHT, padx=2)
+        
         ttk.Button(top_frame, text="Quit", command=self.root.destroy).pack(side=tk.RIGHT, padx=2)
 
         # Options frame
@@ -745,6 +760,20 @@ class AwardsGUI:
             error_msg = f"Error handling task result: {e}"
             self.status_var.set(error_msg)
             messagebox.showerror("Internal Error", error_msg)
+
+    def toggle_theme(self) -> None:
+        """Toggle between light and dark themes."""
+        try:
+            new_theme = theme_manager.toggle_theme()
+            theme_manager.apply_theme(self.root)
+            
+            # Update theme button icon
+            new_icon = "🌙" if new_theme == "light" else "☀️"
+            self.theme_button.configure(text=new_icon)
+            
+            self.status_var.set(f"Switched to {new_theme} theme")
+        except Exception as e:
+            messagebox.showerror("Theme Error", f"Failed to toggle theme: {e}")
 
 def main() -> None:
     root = tk.Tk()
