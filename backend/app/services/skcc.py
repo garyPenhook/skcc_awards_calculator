@@ -2389,3 +2389,34 @@ def calculate_awards(
         rag_chew_awards=rag_chew_awards,
         wac_awards=wac_awards,
     )
+
+
+def extract_my_key(rec: dict[str, str]) -> str | None:
+    """
+    Extract normalized key type from ADIF record for Triple Key award calculation.
+    
+    Args:
+        rec: dict with uppercased ADIF tags -> values
+        
+    Returns:
+        'straight'|'bug'|'sideswiper' or None if not found
+        
+    Priority: standard MY_MORSE_KEY_TYPE field, then APP_SKCCAC_KEY shadow field.
+    """
+    val = rec.get("MY_MORSE_KEY_TYPE")
+    if val:
+        t = val.strip().lower()
+        if "straight" in t:
+            return "straight"
+        if "bug" in t:
+            return "bug"
+        if "side" in t or "cootie" in t:
+            return "sideswiper"
+    
+    val = rec.get("APP_SKCCAC_KEY")
+    if val:
+        v = val.strip().lower()
+        if v in ("straight", "bug", "sideswiper"):
+            return v
+    
+    return None

@@ -30,6 +30,23 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 ✅ **WAC Awards**: Worked All Continents awards with band and QRP endorsements  
 ✅ **Enhanced Input Validation**: Regex-based validation for URLs, file types, and data integrity  
 ✅ **Robust Error Handling**: Improved user feedback for invalid data and file formats  
+✅ **ADIF 3.1.5 QSO Logging**: Built-in QSO logger creates ADIF files without requiring external logging software  
+
+### QSO Logging Features
+
+The application now includes a complete QSO logging system that writes ADIF 3.1.5 files:
+
+🎯 **ADIF 3.1.5 Compliance**: Creates proper headers with version, program ID, and timestamps  
+🎯 **Key Type Tracking**: Required dropdown for Triple Key awards (Straight key, Bug, Side swiper)  
+🎯 **SKCC Field Support**: Uses standard SIG/SIG_INFO fields plus APP_ fields for compatibility  
+🎯 **UTC Timestamps**: All QSO times stored in UTC for consistency  
+🎯 **Band/Frequency**: Auto-calculates band from frequency or accepts manual band entry  
+🎯 **Atomic File Operations**: Safe append operations prevent log corruption  
+🎯 **GUI and CLI**: Both graphical form and command-line interfaces available  
+
+**Launch QSO Logger**:
+- **GUI**: Run `run_qso_logger.bat` or `python -m gui.tk_qso_form`
+- **CLI**: `python -m cli.qso --help` for command-line options
 
 ### New Validation Features
 
@@ -288,7 +305,43 @@ setup.bat                    # First time only
 cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Option 3: Debug/Testing Scripts
+### Option 3: QSO Logging (NEW!)
+
+**Log QSOs to ADIF files without external logging software:**
+
+**GUI QSO Logger:**
+```cmd
+run_qso_logger.bat          # Windows GUI for logging QSOs
+# Or manually:
+python -m gui.tk_qso_form
+```
+
+**Command Line QSO Logger:**
+```cmd
+# Log a QSO with all required fields
+python -m cli.qso ^
+  --adif mylog.adi ^
+  --call W1AW ^
+  --freq 7.055 ^
+  --rst-s 599 --rst-r 579 ^
+  --station KE7UAE --op KE7UAE ^
+  --pwr 5 ^
+  --skcc 22224T --my-skcc 22224C ^
+  --key sideswiper
+
+# Key types: straight, bug, sideswiper (or cootie, ss, sk synonyms)
+# Creates ADIF 3.1.5 compliant files with proper SKCC fields
+```
+
+**QSO Logger Features:**
+- ✅ **ADIF 3.1.5 Standard**: Proper headers and field formatting
+- ✅ **Key Type Required**: Dropdown/flag for Triple Key award tracking
+- ✅ **SKCC Fields**: Uses SIG=SKCC, SIG_INFO=number, plus APP_ fields
+- ✅ **UTC Timestamps**: All QSO times stored in UTC
+- ✅ **Band Calculation**: Auto-calculates band from frequency
+- ✅ **Atomic Writes**: Safe file operations prevent corruption
+
+### Option 4: Debug/Testing Scripts
 ```cmd
 run_debug.bat               # Run ADIF debugging tools
 ```
