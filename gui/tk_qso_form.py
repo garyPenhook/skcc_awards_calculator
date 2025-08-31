@@ -2,6 +2,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from datetime import datetime, timezone
 import sys
+import threading
 from pathlib import Path
 
 # Add the repo root to Python path for imports
@@ -13,20 +14,35 @@ from models.key_type import KeyType, DISPLAY_LABELS, normalize
 from models.qso import QSO
 from adif_io.adif_writer import append_record
 from utils.theme_manager import theme_manager
+from utils.roster_manager import RosterManager
 
 class QSOForm(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master, padding=12)
         self.grid(sticky="nsew")
         
+        # Initialize roster manager
+        self.roster_manager = RosterManager()
+        self.roster_status = "Initializing..."
+        
         # Apply theme to the parent window
         if master:
             theme_manager.apply_theme(master)
             
         self._build_ui()
+        
+        # Delay roster update until the main loop is running
+        self.after(1000, self._start_roster_update)  # Start after 1 second
 
     def _build_ui(self):
         r = 0
+        
+        # Roster status
+        ttk.Label(self, text="Roster Status:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        self.roster_status_var = tk.StringVar(value=self.roster_status)
+        ttk.Label(self, textvariable=self.roster_status_var, foreground="blue").grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        r += 1
+        
         # ADIF path
         ttk.Label(self, text="ADIF file").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.adif_var = tk.StringVar()
@@ -39,17 +55,36 @@ class QSOForm(ttk.Frame):
         ttk.Button(file_buttons, text="Open", command=self._open_adif).grid(row=0, column=0, padx=(0, 2))
         ttk.Button(file_buttons, text="New", command=self._new_adif).grid(row=0, column=1, padx=2)
         r += 1
+        
+        # Time display (Local and UTC)
+        ttk.Label(self, text="QSO Time:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        self.time_display_var = tk.StringVar()
+        ttk.Label(self, textvariable=self.time_display_var, foreground="green").grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        
+        # Start time updates
+        self._update_time_display()
+        r += 1
 
-        # Call
+        # Call with auto-complete
         ttk.Label(self, text="Call").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.call_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.call_var, width=20).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        self.call_entry = ttk.Entry(self, textvariable=self.call_var, width=20)
+        self.call_entry.grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        self.call_var.trace_add('write', self._on_callsign_change)
+        
+        # Auto-complete listbox (initially hidden)
+        self.autocomplete_frame = ttk.Frame(self)
+        self.autocomplete_listbox = tk.Listbox(self.autocomplete_frame, height=5, width=30)
+        self.autocomplete_listbox.bind('<Double-Button-1>', self._select_autocomplete)
+        self.autocomplete_listbox.bind('<Return>', self._select_autocomplete)
+        
         r += 1
 
         # Freq & Band
         ttk.Label(self, text="Freq (MHz)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.freq_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.freq_var, width=10).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        self.freq_entry = ttk.Entry(self, textvariable=self.freq_var, width=10)
+        self.freq_entry.grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         ttk.Label(self, text="Band (e.g. 40M)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
@@ -118,10 +153,176 @@ class QSOForm(ttk.Frame):
         self.theme_button.grid(row=0, column=1, padx=6)
         
         ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=2, padx=6)
+        r += 1
+
+        # Recent QSOs view
+        ttk.Label(self, text="Recent QSOs:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
+        r += 1
+        
+        # Create treeview for recent QSOs
+        tree_frame = ttk.Frame(self)
+        tree_frame.grid(row=r, column=0, columnspan=3, sticky="nsew", padx=6, pady=5)
+        
+        # Treeview with scrollbar
+        self.qso_tree = ttk.Treeview(tree_frame, 
+                                    columns=("time", "call", "band", "skcc", "key"), 
+                                    show="headings", 
+                                    height=6)
+        
+        # Define column headings and widths
+        self.qso_tree.heading("time", text="Time (UTC)")
+        self.qso_tree.heading("call", text="Call")
+        self.qso_tree.heading("band", text="Band")
+        self.qso_tree.heading("skcc", text="SKCC #")
+        self.qso_tree.heading("key", text="Key")
+        
+        self.qso_tree.column("time", width=120)
+        self.qso_tree.column("call", width=100)
+        self.qso_tree.column("band", width=60)
+        self.qso_tree.column("skcc", width=80)
+        self.qso_tree.column("key", width=80)
+        
+        # Scrollbar for the treeview
+        tree_scrollbar = ttk.Scrollbar(tree_frame, orient="vertical", command=self.qso_tree.yview)
+        self.qso_tree.configure(yscrollcommand=tree_scrollbar.set)
+        
+        # Pack treeview and scrollbar
+        self.qso_tree.pack(side="left", fill="both", expand=True)
+        tree_scrollbar.pack(side="right", fill="y")
+        
+        r += 1
 
         # Resize behavior
         for c in range(3):
             self.columnconfigure(c, weight=1)
+        
+        # Make the tree frame expandable
+        self.rowconfigure(r-1, weight=1)
+
+    def _start_roster_update(self):
+        """Start roster update in background thread."""
+        def update_roster():
+            try:
+                # Use after() to update GUI from background thread
+                self.after(0, lambda: self.roster_status_var.set("Checking roster status..."))
+                
+                status = self.roster_manager.get_status()
+                
+                if status['needs_update']:
+                    self.after(0, lambda: self.roster_status_var.set("Downloading SKCC roster..."))
+                    
+                    # Run the async update in a new event loop
+                    import asyncio
+                    loop = asyncio.new_event_loop()
+                    asyncio.set_event_loop(loop)
+                    
+                    def progress_callback(message):
+                        self.after(0, lambda msg=message: self.roster_status_var.set(msg))
+                    
+                    success, message = loop.run_until_complete(
+                        self.roster_manager.ensure_roster_updated(progress_callback=progress_callback)
+                    )
+                    loop.close()
+                    
+                    if not success:
+                        self.after(0, lambda: self.roster_status_var.set(f"Roster error: {message}"))
+                        return
+                        
+                status = self.roster_manager.get_status()
+                member_count = status.get('member_count', 0)
+                last_update = status.get('last_update', 'Never')
+                
+                if last_update != 'Never':
+                    # Format the ISO date nicely
+                    from datetime import datetime
+                    dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+                    last_update = dt.strftime('%Y-%m-%d %H:%M')
+                
+                final_message = f"Ready - {member_count:,} members (Updated: {last_update})"
+                self.after(0, lambda: self.roster_status_var.set(final_message))
+                
+            except Exception as e:
+                error_message = f"Roster error: {str(e)}"
+                self.after(0, lambda: self.roster_status_var.set(error_message))
+                print(f"Roster update error: {e}")
+        
+        # Run in background thread
+        threading.Thread(target=update_roster, daemon=True).start()
+
+    def _update_time_display(self):
+        """Update the time display showing UTC time."""
+        try:
+            local_now = datetime.now()
+            utc_now = local_now.astimezone(timezone.utc)
+            
+            # Show only UTC time for amateur radio logging
+            utc_str = utc_now.strftime("%H:%M:%S UTC")
+            self.time_display_var.set(utc_str)
+            
+            # Schedule next update in 1 second
+            self.after(1000, self._update_time_display)
+            
+        except Exception as e:
+            print(f"Time display error: {e}")
+            # Try again in 5 seconds if there's an error
+            self.after(5000, self._update_time_display)
+
+    def _on_callsign_change(self, *args):
+        """Handle callsign field changes for auto-complete."""
+        callsign = self.call_var.get().upper().strip()
+        
+        if len(callsign) >= 2:  # Start suggesting after 2 characters
+            try:
+                # Search for matching callsigns
+                matches = self.roster_manager.search_callsigns(callsign, limit=10)
+                
+                if matches:
+                    # Show autocomplete listbox
+                    self.autocomplete_listbox.delete(0, tk.END)
+                    for match in matches:
+                        display_text = f"{match['call']} - SKCC #{match['number']}"
+                        self.autocomplete_listbox.insert(tk.END, display_text)
+                    
+                    # Position the autocomplete listbox below the callsign entry
+                    self.autocomplete_frame.grid(row=self.call_entry.grid_info()['row'] + 1, 
+                                               column=1, sticky="w", padx=6, pady=2)
+                    self.autocomplete_listbox.pack()
+                else:
+                    self._hide_autocomplete()
+            except Exception as e:
+                print(f"Autocomplete error: {e}")
+                self._hide_autocomplete()
+        else:
+            self._hide_autocomplete()
+
+    def _hide_autocomplete(self):
+        """Hide the autocomplete listbox."""
+        self.autocomplete_frame.grid_remove()
+
+    def _select_autocomplete(self, event=None):
+        """Select an autocomplete suggestion."""
+        try:
+            selection = self.autocomplete_listbox.curselection()
+            if selection:
+                # Get the selected text and extract callsign and SKCC number
+                selected_text = self.autocomplete_listbox.get(selection[0])
+                callsign = selected_text.split(' - ')[0]
+                skcc_number = selected_text.split('SKCC #')[1]
+                
+                # Fill in the callsign and SKCC number
+                self.call_var.set(callsign)
+                self.their_skcc_var.set(skcc_number)
+                
+                # Hide autocomplete
+                self._hide_autocomplete()
+                
+                # Focus next field - we'll store a reference to the freq entry during build
+                if hasattr(self, 'freq_entry'):
+                    self.freq_entry.focus_set()
+                
+        except Exception as e:
+            print(f"Selection error: {e}")
+            self._hide_autocomplete()
 
     def _choose_adif(self):
         path = filedialog.asksaveasfilename(
@@ -141,6 +342,7 @@ class QSOForm(ttk.Frame):
         if path:
             self.adif_var.set(path)
             self._load_adif_info(path)
+            self._load_recent_qsos(path)
 
     def _new_adif(self):
         """Create a new ADIF file."""
@@ -151,6 +353,9 @@ class QSOForm(ttk.Frame):
         )
         if path:
             self.adif_var.set(path)
+            # Clear recent QSOs view for new file
+            for item in self.qso_tree.get_children():
+                self.qso_tree.delete(item)
 
     def _load_adif_info(self, path):
         """Load and display information about the ADIF file."""
@@ -189,6 +394,95 @@ class QSOForm(ttk.Frame):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to read ADIF file: {e}")
 
+    def _load_recent_qsos(self, path):
+        """Load the last 10 QSOs from the ADIF file."""
+        try:
+            from pathlib import Path
+            
+            if not Path(path).exists():
+                return
+                
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Parse QSO records manually for display
+            import re
+            qso_records = []
+            
+            # Find all QSO records (between start and <EOR>)
+            eor_pattern = re.compile(r'(.*?)<eor>', re.IGNORECASE | re.DOTALL)
+            matches = eor_pattern.findall(content)
+            
+            for match in matches[-10:]:  # Get last 10 records
+                qso_data = {}
+                
+                # Extract fields using regex
+                field_pattern = re.compile(r'<(\w+):(\d+)>([^<]*)', re.IGNORECASE)
+                fields = field_pattern.findall(match)
+                
+                for tag, length, value in fields:
+                    qso_data[tag.upper()] = value[:int(length)] if length.isdigit() else value
+                
+                if 'CALL' in qso_data:  # Only add if we have a callsign
+                    qso_records.append(qso_data)
+            
+            # Clear existing entries and populate with recent QSOs
+            for item in self.qso_tree.get_children():
+                self.qso_tree.delete(item)
+            
+            # Add QSOs to treeview (newest first)
+            for qso in reversed(qso_records):
+                time_str = self._format_qso_time(qso.get('QSO_DATE', ''), qso.get('TIME_ON', ''))
+                call = qso.get('CALL', '')
+                band = qso.get('BAND', '')
+                skcc = qso.get('SKCC', qso.get('APP_SKCC', ''))
+                key = qso.get('APP_SKCC_KEY', qso.get('SIG_INFO', ''))
+                
+                self.qso_tree.insert('', 0, values=(time_str, call, band, skcc, key))
+                
+        except Exception as e:
+            print(f"Error loading recent QSOs: {e}")
+
+    def _format_qso_time(self, qso_date, time_on):
+        """Format QSO date and time for display."""
+        try:
+            if qso_date and len(qso_date) >= 8:
+                date_part = f"{qso_date[4:6]}/{qso_date[6:8]}"
+                if time_on and len(time_on) >= 4:
+                    time_part = f"{time_on[:2]}:{time_on[2:4]}"
+                    return f"{date_part} {time_part}"
+                return date_part
+            return ""
+        except:
+            return ""
+
+    def _add_qso_to_view(self, qso):
+        """Add a new QSO to the recent QSOs view."""
+        try:
+            # Format the QSO data for display
+            # Display UTC time (which is how it's stored)
+            if qso.when:
+                time_str = qso.when.strftime("%m/%d %H:%M")
+            else:
+                time_str = ""
+                
+            call = qso.call or ""
+            band = qso.band or ""
+            skcc = qso.their_skcc or ""
+            key = DISPLAY_LABELS.get(qso.my_key, str(qso.my_key)) if qso.my_key else ""
+            
+            # Insert at the top of the list
+            self.qso_tree.insert('', 0, values=(time_str, call, band, skcc, key))
+            
+            # Remove oldest entries to keep only 10
+            children = self.qso_tree.get_children()
+            if len(children) > 10:
+                for item in children[10:]:
+                    self.qso_tree.delete(item)
+                    
+        except Exception as e:
+            print(f"Error adding QSO to view: {e}")
+
     def _parse_float(self, s):
         if not s.strip():
             return None
@@ -201,9 +495,13 @@ class QSOForm(ttk.Frame):
             if not self.call_var.get().strip():
                 raise ValueError("Enter a callsign.")
             # Build QSO
+            # Get current local time and convert to UTC while preserving DST
+            local_now = datetime.now()  # Local time (includes DST)
+            utc_now = local_now.astimezone(timezone.utc)  # Convert to UTC
+            
             q = QSO(
                 call=self.call_var.get().strip().upper(),
-                when=datetime.now(timezone.utc),   # always UTC now
+                when=utc_now,   # UTC time converted from local time
                 freq_mhz=self._parse_float(self.freq_var.get()),
                 band=(self.band_var.get().strip().upper() or None),
                 rst_s=(self.rst_s_var.get().strip() or None),
@@ -217,6 +515,10 @@ class QSOForm(ttk.Frame):
             )
             fields = q.to_adif_fields()
             append_record(self.adif_var.get(), fields)
+            
+            # Add the QSO to the recent QSOs view
+            self._add_qso_to_view(q)
+            
             messagebox.showinfo("Saved", "QSO appended.")
             self._clear_fields()
         except Exception as e:
@@ -254,13 +556,17 @@ def main():
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
     
-    # Show help message on startup
-    messagebox.showinfo("SKCC QSO Logger", 
-        "Welcome to the SKCC QSO Logger!\n\n" +
-        "• Click 'Open' to load an existing ADIF file\n" +
-        "• Click 'New' to create a new ADIF file\n" +
-        "• Fill in QSO details and click 'Save QSO'\n\n" +
-        "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
+    # Show help message after a brief delay
+    def show_help():
+        messagebox.showinfo("SKCC QSO Logger", 
+            "Welcome to the SKCC QSO Logger!\n\n" +
+            "• Click 'Open' to load an existing ADIF file\n" +
+            "• Click 'New' to create a new ADIF file\n" +
+            "• Fill in QSO details and click 'Save QSO'\n" +
+            "• Type callsigns to see auto-complete suggestions\n\n" +
+            "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
+    
+    root.after(2000, show_help)  # Show help after 2 seconds
     
     root.mainloop()
 
