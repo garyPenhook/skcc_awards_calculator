@@ -32,22 +32,22 @@ class ThemeManager:
                 "status_fg": "#000000"
             },
             "dark": {
-                "bg": "#2d2d2d",
-                "fg": "#ffffff",
-                "select_bg": "#404040",
+                "bg": "#1a1a1a",
+                "fg": "#f0f0f0",
+                "select_bg": "#0078d4",
                 "select_fg": "#ffffff", 
-                "entry_bg": "#404040",
-                "entry_fg": "#ffffff",
-                "button_bg": "#404040",
-                "button_fg": "#ffffff",
-                "frame_bg": "#2d2d2d",
-                "text_bg": "#1e1e1e",
-                "text_fg": "#ffffff",
-                "treeview_bg": "#1e1e1e",
-                "treeview_fg": "#ffffff",
+                "entry_bg": "#2a2a2a",
+                "entry_fg": "#f0f0f0",
+                "button_bg": "#3a3a3a",
+                "button_fg": "#f0f0f0",
+                "frame_bg": "#1a1a1a",
+                "text_bg": "#242424",
+                "text_fg": "#f0f0f0",
+                "treeview_bg": "#242424",
+                "treeview_fg": "#f0f0f0",
                 "treeview_select": "#0078d4",
-                "status_bg": "#404040",
-                "status_fg": "#ffffff"
+                "status_bg": "#2a2a2a",
+                "status_fg": "#f0f0f0"
             }
         }
         self._load_theme_preference()
@@ -102,8 +102,21 @@ class ThemeManager:
         # Configure common ttk widgets
         style.configure("TFrame", background=colors["frame_bg"])
         style.configure("TLabel", background=colors["frame_bg"], foreground=colors["fg"])
-        style.configure("TButton", background=colors["button_bg"], foreground=colors["button_fg"])
-        style.configure("TEntry", fieldbackground=colors["entry_bg"], foreground=colors["entry_fg"])
+        style.configure("TButton", 
+                       background=colors["button_bg"], 
+                       foreground=colors["button_fg"],
+                       relief="raised",
+                       borderwidth=1)
+        style.map("TButton",
+                 background=[('active', colors["select_bg"]),
+                           ('pressed', colors["select_bg"])],
+                 foreground=[('active', colors["select_fg"]),
+                           ('pressed', colors["select_fg"])])
+        style.configure("TEntry", 
+                       fieldbackground=colors["entry_bg"], 
+                       foreground=colors["entry_fg"],
+                       borderwidth=1,
+                       relief="solid")
         style.configure("TCheckbutton", background=colors["frame_bg"], foreground=colors["fg"])
         style.configure("TCombobox", fieldbackground=colors["entry_bg"], foreground=colors["entry_fg"])
         
@@ -124,6 +137,9 @@ class ThemeManager:
         
         # Configure Listbox widgets
         self._apply_to_listbox_widgets(root, colors)
+        
+        # Configure Entry and Label widgets
+        self._apply_to_tk_widgets(root, colors)
     
     def _apply_to_text_widgets(self, parent: tk.Misc, colors: Dict[str, str]) -> None:
         """Apply theme to Text widgets recursively."""
@@ -151,6 +167,34 @@ class ThemeManager:
                 )
             elif hasattr(child, 'winfo_children'):
                 self._apply_to_listbox_widgets(child, colors)
+    
+    def _apply_to_tk_widgets(self, parent: tk.Misc, colors: Dict[str, str]) -> None:
+        """Apply theme to regular tk widgets recursively."""
+        for child in parent.winfo_children():
+            if isinstance(child, tk.Entry):
+                child.configure(
+                    bg=colors["entry_bg"],
+                    fg=colors["entry_fg"],
+                    selectbackground=colors["select_bg"],
+                    selectforeground=colors["select_fg"],
+                    insertbackground=colors["entry_fg"]
+                )
+            elif isinstance(child, tk.Label):
+                child.configure(
+                    bg=colors["frame_bg"],
+                    fg=colors["fg"]
+                )
+            elif isinstance(child, tk.Button):
+                child.configure(
+                    bg=colors["button_bg"],
+                    fg=colors["button_fg"],
+                    activebackground=colors["select_bg"],
+                    activeforeground=colors["select_fg"]
+                )
+            elif isinstance(child, tk.Frame):
+                child.configure(bg=colors["frame_bg"])
+            elif hasattr(child, 'winfo_children'):
+                self._apply_to_tk_widgets(child, colors)
 
 # Global theme manager instance
 theme_manager = ThemeManager()

@@ -15,6 +15,7 @@ from models.qso import QSO
 from adif_io.adif_writer import append_record
 from utils.theme_manager import theme_manager
 from utils.roster_manager import RosterManager
+from utils.backup_manager import backup_manager
 
 class QSOForm(ttk.Frame):
     def __init__(self, master=None):
@@ -134,11 +135,6 @@ class QSOForm(ttk.Frame):
         ttk.Entry(self, textvariable=self.their_skcc_var, width=12).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
-        ttk.Label(self, text="My SKCC #").grid(row=r, column=0, sticky="e", padx=6, pady=4)
-        self.my_skcc_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.my_skcc_var, width=12).grid(row=r, column=1, sticky="w", padx=6, pady=4)
-        r += 1
-
         # Key used (REQUIRED for Triple Key)
         ttk.Label(self, text="Key used").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.key_var = tk.StringVar()
@@ -156,12 +152,15 @@ class QSOForm(ttk.Frame):
         btn_row = ttk.Frame(self); btn_row.grid(row=r, column=0, columnspan=3, pady=(12, 0))
         ttk.Button(btn_row, text="Save QSO", command=self._save).grid(row=0, column=0, padx=6)
         
+        # Backup config button
+        ttk.Button(btn_row, text="Backup ⚙", command=self._show_backup_info).grid(row=0, column=1, padx=6)
+        
         # Theme toggle button
         current_theme = "🌙" if theme_manager.current_theme == "light" else "☀️"
         self.theme_button = ttk.Button(btn_row, text=current_theme, width=3, command=self._toggle_theme)
-        self.theme_button.grid(row=0, column=1, padx=6)
+        self.theme_button.grid(row=0, column=2, padx=6)
         
-        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=2, padx=6)
+        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=3, padx=6)
         r += 1
 
         # Recent QSOs view
@@ -551,11 +550,13 @@ class QSOForm(ttk.Frame):
                 operator=(self.op_var.get().strip().upper() or None),
                 tx_pwr_w=(self._parse_float(self.pwr_var.get()) if self.pwr_var.get().strip() else None),
                 their_skcc=(self.their_skcc_var.get().strip().upper() or None),
-                my_skcc=(self.my_skcc_var.get().strip().upper() or None),
                 my_key=normalize(self.key_var.get()),
             )
             fields = q.to_adif_fields()
             append_record(self.adif_var.get(), fields)
+            
+            # Create backup after successful save
+            backup_manager.create_backup(self.adif_var.get())
             
             # Add the QSO to the recent QSOs view
             self._add_qso_to_view(q)
@@ -572,7 +573,7 @@ class QSOForm(ttk.Frame):
         self.rst_s_var.set("599")
         self.rst_r_var.set("599")
         self.their_skcc_var.set("")
-        # keep my_skcc, station, op, pwr, and key selection as convenience
+        # keep station, op, pwr, and key selection as convenience
 
     def _quit(self):
         self.winfo_toplevel().destroy()
@@ -588,6 +589,188 @@ class QSOForm(ttk.Frame):
             self.theme_button.configure(text=new_icon)
         except Exception as e:
             messagebox.showerror("Theme Error", f"Failed to toggle theme: {e}")
+
+    def _show_backup_info(self) -> None:
+        """Show backup information and configuration."""
+        backup_folder = backup_manager.get_backup_folder()
+        is_enabled = backup_manager.config.get("backup_enabled", True)
+        secondary = backup_manager.config.get("secondary_backup", "").strip()
+        
+        info_text = f"""Automatic Backup System
+
+Status: {'Enabled' if is_enabled else 'Disabled'}
+
+Primary Backup Folder:
+{backup_folder}
+
+Secondary Backup: {'Configured' if secondary else 'Not configured'}
+{secondary if secondary else '(Optional - for USB/network backup)'}
+
+Backups are created automatically when saving QSOs.
+The last 10 backups are kept for each ADIF file.
+
+To configure backup settings, edit:
+{backup_manager.config_file}"""
+
+        messagebox.showinfo("Backup Configuration", info_text)
+
+    def _load_backup_config(self) -> dict:
+        """Load backup configuration from file."""
+        default_config = {
+            "auto_backup": True,
+            "backup_folder": str(Path.home() / ".skcc_awards" / "backups"),
+            "secondary_backup": "",
+            "backup_enabled": True
+        }
+        
+        try:
+            if self.backup_config_file.exists():
+                with open(self.backup_config_file, 'r') as f:
+                    config = json.load(f)
+                    # Merge with defaults to handle missing keys
+                    return {**default_config, **config}
+        except Exception:
+            pass
+        
+        return default_config
+    
+    def _save_backup_config(self) -> None:
+        """Save backup configuration to file."""
+        try:
+            self.backup_config_file.parent.mkdir(exist_ok=True)
+            with open(self.backup_config_file, 'w') as f:
+                json.dump(self.backup_config, f, indent=2)
+        except Exception:
+            pass  # Fail silently if we can't save
+    
+    def _create_backup(self, source_file: str) -> None:
+        """Create backup of ADIF file."""
+        if not self.backup_config.get("backup_enabled", True):
+            return
+            
+        try:
+            source_path = Path(source_file)
+            if not source_path.exists():
+                return
+            
+            # Create timestamp for backup
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{source_path.stem}_backup_{timestamp}{source_path.suffix}"
+            
+            # Primary backup location
+            backup_folder = Path(self.backup_config.get("backup_folder"))
+            backup_folder.mkdir(parents=True, exist_ok=True)
+            primary_backup = backup_folder / backup_name
+            shutil.copy2(source_file, primary_backup)
+            
+            # Secondary backup location (if configured)
+            secondary_path = self.backup_config.get("secondary_backup", "").strip()
+            if secondary_path and Path(secondary_path).exists():
+                secondary_backup = Path(secondary_path) / backup_name
+                try:
+                    shutil.copy2(source_file, secondary_backup)
+                except Exception:
+                    # Secondary backup failed, but don't stop the main operation
+                    pass
+                    
+            # Clean up old backups (keep last 10)
+            self._cleanup_old_backups(backup_folder, source_path.stem)
+            
+        except Exception as e:
+            # Don't interrupt the save operation if backup fails
+            print(f"Backup failed: {e}")
+    
+    def _cleanup_old_backups(self, backup_folder: Path, file_stem: str) -> None:
+        """Keep only the last 10 backups for each file."""
+        try:
+            pattern = f"{file_stem}_backup_*"
+            backups = sorted(backup_folder.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+            
+            # Remove backups beyond the 10 most recent
+            for old_backup in backups[10:]:
+                old_backup.unlink()
+        except Exception:
+            pass
+    
+    def _configure_backup(self) -> None:
+        """Open backup configuration dialog."""
+        config_window = tk.Toplevel(self.winfo_toplevel())
+        config_window.title("Backup Configuration")
+        config_window.geometry("500x300")
+        config_window.resizable(False, False)
+        
+        # Apply theme
+        theme_manager.apply_theme(config_window)
+        
+        main_frame = ttk.Frame(config_window, padding=12)
+        main_frame.pack(fill="both", expand=True)
+        
+        r = 0
+        
+        # Enable backup checkbox
+        backup_enabled_var = tk.BooleanVar(value=self.backup_config.get("backup_enabled", True))
+        ttk.Checkbutton(main_frame, text="Enable automatic backups", 
+                       variable=backup_enabled_var).grid(row=r, column=0, columnspan=2, sticky="w", pady=4)
+        r += 1
+        
+        # Primary backup folder
+        ttk.Label(main_frame, text="Primary backup folder:").grid(row=r, column=0, sticky="w", pady=4)
+        r += 1
+        
+        backup_folder_var = tk.StringVar(value=self.backup_config.get("backup_folder"))
+        folder_frame = ttk.Frame(main_frame)
+        folder_frame.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
+        
+        ttk.Entry(folder_frame, textvariable=backup_folder_var, width=50).pack(side="left", fill="x", expand=True)
+        ttk.Button(folder_frame, text="Browse", 
+                  command=lambda: self._browse_folder(backup_folder_var)).pack(side="right", padx=(4, 0))
+        r += 1
+        
+        # Secondary backup location
+        ttk.Label(main_frame, text="Secondary backup (USB/Network):").grid(row=r, column=0, sticky="w", pady=(12, 4))
+        r += 1
+        
+        secondary_var = tk.StringVar(value=self.backup_config.get("secondary_backup", ""))
+        secondary_frame = ttk.Frame(main_frame)
+        secondary_frame.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
+        
+        ttk.Entry(secondary_frame, textvariable=secondary_var, width=50).pack(side="left", fill="x", expand=True)
+        ttk.Button(secondary_frame, text="Browse", 
+                  command=lambda: self._browse_folder(secondary_var)).pack(side="right", padx=(4, 0))
+        r += 1
+        
+        # Info label
+        info_text = ("Backups are created automatically when saving QSOs.\n" +
+                    "Primary backups are always created locally.\n" +
+                    "Secondary backup is optional (e.g., USB stick for safety).\n" +
+                    "Only the 10 most recent backups are kept.")
+        ttk.Label(main_frame, text=info_text, foreground="gray").grid(row=r, column=0, columnspan=2, sticky="w", pady=(12, 4))
+        r += 1
+        
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.grid(row=r, column=0, columnspan=2, pady=(12, 0))
+        
+        def save_config():
+            self.backup_config.update({
+                "backup_enabled": backup_enabled_var.get(),
+                "backup_folder": backup_folder_var.get(),
+                "secondary_backup": secondary_var.get()
+            })
+            self._save_backup_config()
+            config_window.destroy()
+            messagebox.showinfo("Saved", "Backup configuration saved.")
+        
+        ttk.Button(btn_frame, text="Save", command=save_config).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Cancel", command=config_window.destroy).pack(side="left")
+        
+        main_frame.columnconfigure(0, weight=1)
+    
+    def _browse_folder(self, var: tk.StringVar) -> None:
+        """Browse for a folder and update the variable."""
+        folder = filedialog.askdirectory(title="Select backup folder")
+        if folder:
+            var.set(folder)
 
 def main():
     root = tk.Tk()
@@ -610,6 +793,183 @@ def main():
             "• Auto-complete with 30,000+ SKCC members\n" +
             "• Recent QSOs view at bottom\n" +
             "• Proper UTC time handling\n\n" +
+            "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
+    
+    def _load_backup_config(self) -> dict:
+        """Load backup configuration from file."""
+        default_config = {
+            "auto_backup": True,
+            "backup_folder": str(Path.home() / ".skcc_awards" / "backups"),
+            "secondary_backup": "",
+            "backup_enabled": True
+        }
+        
+        try:
+            if self.backup_config_file.exists():
+                with open(self.backup_config_file, 'r') as f:
+                    config = json.load(f)
+                    # Merge with defaults to handle missing keys
+                    return {**default_config, **config}
+        except Exception:
+            pass
+        
+        return default_config
+    
+    def _save_backup_config(self) -> None:
+        """Save backup configuration to file."""
+        try:
+            self.backup_config_file.parent.mkdir(exist_ok=True)
+            with open(self.backup_config_file, 'w') as f:
+                json.dump(self.backup_config, f, indent=2)
+        except Exception:
+            pass  # Fail silently if we can't save
+    
+    def _create_backup(self, source_file: str) -> None:
+        """Create backup of ADIF file."""
+        if not self.backup_config.get("backup_enabled", True):
+            return
+            
+        try:
+            source_path = Path(source_file)
+            if not source_path.exists():
+                return
+            
+            # Create timestamp for backup
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_name = f"{source_path.stem}_backup_{timestamp}{source_path.suffix}"
+            
+            # Primary backup location
+            backup_folder = Path(self.backup_config.get("backup_folder"))
+            backup_folder.mkdir(parents=True, exist_ok=True)
+            primary_backup = backup_folder / backup_name
+            shutil.copy2(source_file, primary_backup)
+            
+            # Secondary backup location (if configured)
+            secondary_path = self.backup_config.get("secondary_backup", "").strip()
+            if secondary_path and Path(secondary_path).exists():
+                secondary_backup = Path(secondary_path) / backup_name
+                try:
+                    shutil.copy2(source_file, secondary_backup)
+                except Exception:
+                    # Secondary backup failed, but don't stop the main operation
+                    pass
+                    
+            # Clean up old backups (keep last 10)
+            self._cleanup_old_backups(backup_folder, source_path.stem)
+            
+        except Exception as e:
+            # Don't interrupt the save operation if backup fails
+            print(f"Backup failed: {e}")
+    
+    def _cleanup_old_backups(self, backup_folder: Path, file_stem: str) -> None:
+        """Keep only the last 10 backups for each file."""
+        try:
+            pattern = f"{file_stem}_backup_*"
+            backups = sorted(backup_folder.glob(pattern), key=lambda p: p.stat().st_mtime, reverse=True)
+            
+            # Remove backups beyond the 10 most recent
+            for old_backup in backups[10:]:
+                old_backup.unlink()
+        except Exception:
+            pass
+    
+    def _configure_backup(self) -> None:
+        """Open backup configuration dialog."""
+        config_window = tk.Toplevel(self.winfo_toplevel())
+        config_window.title("Backup Configuration")
+        config_window.geometry("500x300")
+        config_window.resizable(False, False)
+        
+        # Apply theme
+        theme_manager.apply_theme(config_window)
+        
+        main_frame = ttk.Frame(config_window, padding=12)
+        main_frame.pack(fill="both", expand=True)
+        
+        r = 0
+        
+        # Enable backup checkbox
+        backup_enabled_var = tk.BooleanVar(value=self.backup_config.get("backup_enabled", True))
+        ttk.Checkbutton(main_frame, text="Enable automatic backups", 
+                       variable=backup_enabled_var).grid(row=r, column=0, columnspan=2, sticky="w", pady=4)
+        r += 1
+        
+        # Primary backup folder
+        ttk.Label(main_frame, text="Primary backup folder:").grid(row=r, column=0, sticky="w", pady=4)
+        r += 1
+        
+        backup_folder_var = tk.StringVar(value=self.backup_config.get("backup_folder"))
+        folder_frame = ttk.Frame(main_frame)
+        folder_frame.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
+        
+        ttk.Entry(folder_frame, textvariable=backup_folder_var, width=50).pack(side="left", fill="x", expand=True)
+        ttk.Button(folder_frame, text="Browse", 
+                  command=lambda: self._browse_folder(backup_folder_var)).pack(side="right", padx=(4, 0))
+        r += 1
+        
+        # Secondary backup location
+        ttk.Label(main_frame, text="Secondary backup (USB/Network):").grid(row=r, column=0, sticky="w", pady=(12, 4))
+        r += 1
+        
+        secondary_var = tk.StringVar(value=self.backup_config.get("secondary_backup", ""))
+        secondary_frame = ttk.Frame(main_frame)
+        secondary_frame.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
+        
+        ttk.Entry(secondary_frame, textvariable=secondary_var, width=50).pack(side="left", fill="x", expand=True)
+        ttk.Button(secondary_frame, text="Browse", 
+                  command=lambda: self._browse_folder(secondary_var)).pack(side="right", padx=(4, 0))
+        r += 1
+        
+        # Info label
+        info_text = ("Backups are created automatically when saving QSOs.\n" +
+                    "Primary backups are always created locally.\n" +
+                    "Secondary backup is optional (e.g., USB stick for safety).\n" +
+                    "Only the 10 most recent backups are kept.")
+        ttk.Label(main_frame, text=info_text, foreground="gray").grid(row=r, column=0, columnspan=2, sticky="w", pady=(12, 4))
+        r += 1
+        
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.grid(row=r, column=0, columnspan=2, pady=(12, 0))
+        
+        def save_config():
+            self.backup_config.update({
+                "backup_enabled": backup_enabled_var.get(),
+                "backup_folder": backup_folder_var.get(),
+                "secondary_backup": secondary_var.get()
+            })
+            self._save_backup_config()
+            config_window.destroy()
+            messagebox.showinfo("Saved", "Backup configuration saved.")
+        
+        ttk.Button(btn_frame, text="Save", command=save_config).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Cancel", command=config_window.destroy).pack(side="left")
+        
+        main_frame.columnconfigure(0, weight=1)
+    
+    def _browse_folder(self, var: tk.StringVar) -> None:
+        """Browse for a folder and update the variable."""
+        folder = filedialog.askdirectory(title="Select backup folder")
+        if folder:
+            var.set(folder)
+
+def main():
+    root = tk.Tk()
+    root.title("SKCC QSO Logger - Open/Create ADIF Files")
+    # tk scaling & theming are optional; keep it simple
+    frm = QSOForm(root)
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    
+    def show_help():
+        messagebox.showinfo("SKCC QSO Logger Help",
+            "Welcome to the SKCC QSO Logger!\n\n" +
+            "Features:\n" +
+            "• Live roster integration with 30,000+ SKCC members\n" +
+            "• Auto-complete with 30,000+ SKCC members\n" +
+            "• Recent QSOs view at bottom\n" +
+            "• Proper UTC time handling\n" +
+            "• Automatic backup system\n\n" +
             "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
     
     root.after(2000, show_help)  # Show help after 2 seconds
