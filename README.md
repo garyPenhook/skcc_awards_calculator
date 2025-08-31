@@ -13,6 +13,53 @@ The Straight Key Century Club offers three main awards based on contacting SKCC 
 - **Tribune Award (50)**: Contact 50 unique SKCC members who have achieved Centurion/Tribune/Senator status (both parties must be Centurions at time of QSO)
 - **Senator Award**: Achieve Tribune x8 (400 qualified contacts) + contact 200 unique Tribune/Senator members
 
+## Requirements
+
+### System Requirements
+- **Python 3.7+** (with built-in SQLite3 support)
+- **Operating System**: Windows, macOS, or Linux
+- **Internet Connection**: Required for initial roster download (optional for offline operation after first sync)
+
+### Dependencies
+**Built-in Python Libraries** (no installation required):
+- `sqlite3` - Database operations for roster storage
+- `tkinter` - GUI interface
+- `pathlib`, `datetime`, `json`, `threading`, `asyncio` - Core functionality
+
+**External Dependencies** (install with `pip install -r requirements.txt`):
+- `httpx==0.27.0` - HTTP requests for fetching SKCC roster
+- `beautifulsoup4==4.12.3` - HTML parsing for roster data
+
+**Database**: 
+- SQLite3 database automatically created at `~/.skcc_awards/roster.db`
+- No database server installation required
+- Zero configuration - works out of the box
+
+## Database Information
+
+The application uses a local SQLite3 database to store the SKCC roster and QSO logs:
+
+### Database Details
+- **Type**: SQLite3 (built into Python, no installation required)
+- **Location**: `~/.skcc_awards/roster.db` (automatically created on first run)
+- **Size**: Approximately 5-10 MB for full SKCC roster (30,000+ members)
+- **Features**:
+  - WAL (Write-Ahead Logging) mode for better concurrent access
+  - Automatic retry logic for database operations
+  - Self-healing capabilities with cleanup utilities
+
+### Data Sources
+- **SKCC Roster**: Downloaded from https://www.skccgroup.com/member_services/roster/
+- **QSO Logs**: Created locally when using the QSO logger
+- **Configuration**: User preferences stored in JSON format
+
+### Zero Configuration
+The database is fully managed by the application:
+- No database server setup required
+- Automatic schema creation
+- Built-in error handling and recovery
+- Safe concurrent access for multiple operations
+
 ### Key Features
 
 ✅ **Accurate Award Validation**: Implements official SKCC award rules including suffix requirements  
@@ -68,6 +115,13 @@ The application now features live SKCC member roster integration for efficient l
 🎯 **Background Updates**: Roster downloads happen in background without blocking UI  
 🎯 **Portable Detection**: Handles portable indicators (/P, /M) in callsign matching  
 🎯 **Configuration System**: Saves your station info and preferences automatically  
+
+**Database Information**:
+- **Type**: SQLite3 (built into Python - no installation required)
+- **Location**: `~/.skcc_awards/roster.db` (automatically created)
+- **Size**: ~5-10 MB for 30,000+ SKCC members
+- **Setup**: Zero configuration - works out of the box
+- **Features**: WAL mode for concurrent access, automatic retry logic, cleanup utilities  
 
 **New Roster-Enabled QSO Logger**:
 - **GUI**: Run `python test_roster_qso.py` to launch the enhanced QSO logger
@@ -204,13 +258,6 @@ The program correctly implements these SKCC award requirements:
       - **Asia (AS)**: Asian countries including Asiatic Russia  
       - **Oceania (OC)**: Australia, New Zealand, Pacific islands
     - Valid after October 9, 2011; both parties must be SKCC members at time of QSO
-
-## Requirements
-
-- **Python 3.8 or higher** with tkinter support
-- **Internet connection** (for fetching SKCC roster)
-- **ADIF log file** (preferably from SKCC Logger for best accuracy)
-- **Operating System**: Windows, Linux, or macOS
 
 ## Installation
 

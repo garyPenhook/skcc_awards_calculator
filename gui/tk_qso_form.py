@@ -32,7 +32,12 @@ class QSOForm(ttk.Frame):
         self.adif_var = tk.StringVar()
         adif_entry = ttk.Entry(self, textvariable=self.adif_var, width=50)
         adif_entry.grid(row=r, column=1, sticky="we", padx=6, pady=4)
-        ttk.Button(self, text="Browse…", command=self._choose_adif).grid(row=r, column=2, padx=6, pady=4)
+        
+        # File operation buttons
+        file_buttons = ttk.Frame(self)
+        file_buttons.grid(row=r, column=2, padx=6, pady=4)
+        ttk.Button(file_buttons, text="Open", command=self._open_adif).grid(row=0, column=0, padx=(0, 2))
+        ttk.Button(file_buttons, text="New", command=self._new_adif).grid(row=0, column=1, padx=2)
         r += 1
 
         # Call
@@ -127,6 +132,63 @@ class QSOForm(ttk.Frame):
         if path:
             self.adif_var.set(path)
 
+    def _open_adif(self):
+        """Open an existing ADIF file for viewing/appending."""
+        path = filedialog.askopenfilename(
+            title="Open existing ADIF file",
+            filetypes=[("ADIF files", "*.adi"), ("All files", "*.*")],
+        )
+        if path:
+            self.adif_var.set(path)
+            self._load_adif_info(path)
+
+    def _new_adif(self):
+        """Create a new ADIF file."""
+        path = filedialog.asksaveasfilename(
+            title="Create new ADIF file",
+            defaultextension=".adi",
+            filetypes=[("ADIF files", "*.adi"), ("All files", "*.*")],
+        )
+        if path:
+            self.adif_var.set(path)
+
+    def _load_adif_info(self, path):
+        """Load and display information about the ADIF file."""
+        try:
+            from pathlib import Path
+            
+            if not Path(path).exists():
+                messagebox.showwarning("File Not Found", f"ADIF file not found: {path}")
+                return
+                
+            # Simple file statistics without parsing
+            with open(path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            # Count QSO records by looking for <EOR> tags
+            import re
+            eor_pattern = re.compile(r'<eor>', re.IGNORECASE)
+            qso_count = len(eor_pattern.findall(content))
+            
+            file_size = Path(path).stat().st_size
+            file_size_kb = file_size / 1024
+            
+            if qso_count == 0:
+                messagebox.showinfo("ADIF File", 
+                    f"Opened: {Path(path).name}\n"
+                    f"File size: {file_size_kb:.1f} KB\n"
+                    f"No QSO records found.\n\n"
+                    f"You can now add QSOs to this file.")
+            else:
+                messagebox.showinfo("ADIF File", 
+                    f"Opened: {Path(path).name}\n"
+                    f"File size: {file_size_kb:.1f} KB\n"
+                    f"QSO records: {qso_count}\n\n"
+                    f"You can now add new QSOs to this file.")
+                    
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to read ADIF file: {e}")
+
     def _parse_float(self, s):
         if not s.strip():
             return None
@@ -186,11 +248,20 @@ class QSOForm(ttk.Frame):
 
 def main():
     root = tk.Tk()
-    root.title("SKCC QSO Logger")
+    root.title("SKCC QSO Logger - Open/Create ADIF Files")
     # tk scaling & theming are optional; keep it simple
     frm = QSOForm(root)
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
+    
+    # Show help message on startup
+    messagebox.showinfo("SKCC QSO Logger", 
+        "Welcome to the SKCC QSO Logger!\n\n" +
+        "• Click 'Open' to load an existing ADIF file\n" +
+        "• Click 'New' to create a new ADIF file\n" +
+        "• Fill in QSO details and click 'Save QSO'\n\n" +
+        "The logger supports ADIF 3.1.5 format with SKCC-specific fields.")
+    
     root.mainloop()
 
 if __name__ == "__main__":
