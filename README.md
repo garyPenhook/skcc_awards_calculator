@@ -177,8 +177,9 @@ The application now features live SKCC member roster integration for efficient l
 - **Setup**: Zero configuration - works out of the box
 - **Features**: WAL mode for concurrent access, automatic retry logic, cleanup utilities  
 
-**New Roster-Enabled QSO Logger**:
-- **GUI**: Run `python test_roster_qso.py` to launch the enhanced QSO logger
+**W4GNS SKCC Logger**:
+- **Main Logger**: Run `python w4gns_skcc_logger.py` to launch the W4GNS SKCC Logger
+- **Features**: QSO logging, cluster spots, state auto-fill, duplicate filtering
 - **Roster Sync**: Use `python scripts/roster_sync.py` for command-line roster management
 
 **Roster Management Commands**:

@@ -11,6 +11,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Run the QSO Logger GUI
-python -m gui.tk_qso_form
+REM Run the W4GNS SKCC Logger GUI
+python w4gns_skcc_logger.py
 pause

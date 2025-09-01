@@ -60,7 +60,7 @@ class QSO:
 #### Core Changes:
 - `models/qso.py`: Added `time_off` field and TIME_OFF ADIF export
 - `gui/tk_qso_form_clean.py`: Enhanced timing capture and display
-- `gui/tk_qso_form.py`: Updated for consistency
+- `gui/tk_qso_form_clean.py`: Updated for consistency (main W4GNS logger GUI)
 
 #### Key Methods:
 - `_on_callsign_change()`: Captures start time when callsign entered
