@@ -14,7 +14,7 @@ This is the **official W4GNS SKCC Logger** with all enhanced features:
 - ✅ **QSO Logging**: Complete QSO entry with timing
 - ✅ **Cluster Spots**: Real-time RBN spots with SKCC filtering
 - ✅ **State Auto-fill**: Automatic state lookup from SKCC roster
-- ✅ **Roster Updates**: Checks for roster updates every startup (1-hour minimum)
+- ✅ **Roster Updates**: Checks on startup (updates if older than 1 hour)
 - ✅ **Duplicate Filtering**: Clean spots display without repeated callsigns
 - ✅ **Two-Column Layout**: QSO form on left, spots/history on right
 - ✅ **Backup Management**: Automatic ADIF backup functionality

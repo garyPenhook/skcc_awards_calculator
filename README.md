@@ -13,7 +13,7 @@ A comprehensive Python application for SKCC (Straight Key Century Club) QSO logg
 - **⏰ QSO Timing**: Automatic start/end time tracking for Rag Chew awards
 - **💾 ADIF 3.1.5 Logging**: Professional QSO logging with backup management
 - **🎨 Two-Column Layout**: QSO form + spots display for efficient operation
-- **🔄 Smart Updates**: Hourly roster checks on startup
+- **🔄 Smart Updates**: Checks roster on startup (1-hour minimum interval)
 
 ### Award Progress Calculator
 - **🏆 All SKCC Awards**: Centurion, Tribune, Senator with endorsements
@@ -164,7 +164,7 @@ skcc_awards_calculator/
 ## ⚙️ Configuration
 
 ### Roster Updates
-- **Automatic**: Checks every startup (1-hour minimum interval)
+- **Automatic**: Checks on startup, updates if older than 1 hour
 - **Manual**: Use `python scripts/roster_sync.py sync`
 - **Database**: Stored at `~/.skcc_awards/roster.db`
 

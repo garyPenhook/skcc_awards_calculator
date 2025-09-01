@@ -181,8 +181,8 @@ class QSOForm(ttk.Frame):
                 f"Members: {member_count:,} | Last update: {last_update_str}"
             )
             
-            # Check for roster updates on every startup (1-hour minimum interval)
-            # This ensures the roster is checked more frequently than the default 24-hour interval
+            # Check for roster updates on every startup (with 1-hour minimum interval)
+            # This ensures fresh roster data while respecting server load limits
             self.progress_dialog.update_status("Checking for roster updates...")
             # Run roster update in a thread to avoid blocking UI
             self._update_roster_async()
@@ -229,7 +229,7 @@ class QSOForm(ttk.Frame):
                     self.roster_manager.ensure_roster_updated(
                         force=False, 
                         progress_callback=progress_callback,
-                        max_age_hours=1  # Check for updates every hour on startup
+                        max_age_hours=1  # Only update if older than 1 hour
                     )
                 )
                 
