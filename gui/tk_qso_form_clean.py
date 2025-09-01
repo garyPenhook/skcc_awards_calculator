@@ -456,8 +456,14 @@ class QSOForm(ttk.Frame):
         self._update_roster_status_display()
         r += 1
 
+        # Add separator before cluster spots
+        separator = ttk.Separator(self, orient='horizontal')
+        separator.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=10)
+        r += 1
+
         # SKCC Cluster Spots section
-        ttk.Label(self, text="SKCC Cluster Spots:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
+        cluster_label = ttk.Label(self, text="SKCC Cluster Spots:", font=("Arial", 10, "bold"))
+        cluster_label.grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(10, 5))
         r += 1
         
         # Cluster control frame
@@ -491,7 +497,7 @@ class QSOForm(ttk.Frame):
         
         self.spots_tree.column("Time", width=70, minwidth=60)
         self.spots_tree.column("Call", width=90, minwidth=80)
-        self.spots_tree.column("Freq", width=90, minwidth=80)
+        self.spots_tree.column("Freq", width=100, minwidth=90)  # Wider for 3 decimal places
         self.spots_tree.column("Band", width=60, minwidth=50)
         self.spots_tree.column("Spotter", width=100, minwidth=80)
         self.spots_tree.column("SNR", width=60, minwidth=40)
@@ -867,7 +873,7 @@ class QSOForm(ttk.Frame):
         try:
             # Format values for display
             time_str = spot.time_utc.strftime("%H:%M")
-            freq_str = f"{spot.frequency:.1f}"
+            freq_str = f"{spot.frequency:.3f}"  # Show 3 decimal places for accuracy
             snr_str = f"{spot.snr}dB" if spot.snr else ""
             
             # Insert at the top of the tree
@@ -927,8 +933,9 @@ class QSOForm(ttk.Frame):
 
 def main():
     root = tk.Tk()
-    root.title("W4GNS SKCC Logger")
-    root.geometry("600x750")
+    root.title("W4GNS SKCC Logger - Enhanced with Cluster Spots")
+    root.geometry("600x950")  # Increased height for cluster spots section
+    root.minsize(580, 800)    # Minimum size to see all features
     
     app = QSOForm(root)
     root.mainloop()
