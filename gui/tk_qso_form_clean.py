@@ -199,7 +199,7 @@ class QSOForm(ttk.Frame):
                 class DummyRosterManager:
                     def lookup_member(self, call): return None
                     def search_callsigns(self, prefix, limit=10): return []
-                    async def ensure_roster_updated(self, force=False, progress_callback=None):
+                    async def ensure_roster_updated(self, force=False, progress_callback=None, max_age_hours=24):
                         return False, "No roster manager available"
                     def get_status(self):
                         return {'member_count': 0, 'last_update': None, 'needs_update': False}
