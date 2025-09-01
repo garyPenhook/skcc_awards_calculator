@@ -180,21 +180,11 @@ class QSOForm(ttk.Frame):
                 f"Members: {member_count:,} | Last update: {last_update_str}"
             )
             
-            if needs_update:
-                self.progress_dialog.update_status("Roster update needed, checking for updates...")
-                # Run roster update in a thread to avoid blocking UI
-                self._update_roster_async()
-            else:
-                # Show final status with close button
-                self.progress_dialog.show_final_status(
-                    "Roster is current", 
-                    f"Ready to log QSOs with {member_count:,} members"
-                )
-                # Auto-close after showing status for a few seconds
-                def close_and_update():
-                    self.progress_dialog.close()
-                    self._update_roster_status_display()
-                self.after(3000, close_and_update)
+            # Check for roster updates on every startup (1-hour minimum interval)
+            # This ensures the roster is checked more frequently than the default 24-hour interval
+            self.progress_dialog.update_status("Checking for roster updates...")
+            # Run roster update in a thread to avoid blocking UI
+            self._update_roster_async()
                 
         except Exception as e:
             self.progress_dialog.update_status(
@@ -224,7 +214,8 @@ class QSOForm(ttk.Frame):
             
         def update_worker():
             def progress_callback(message):
-                self.progress_dialog.update_status("Updating roster...", message)
+                # Schedule UI update on main thread
+                self.after(0, lambda: self.progress_dialog.update_status("Updating roster...", message))
             
             loop = None
             try:
@@ -235,7 +226,8 @@ class QSOForm(ttk.Frame):
                 success, message = loop.run_until_complete(
                     self.roster_manager.ensure_roster_updated(
                         force=False, 
-                        progress_callback=progress_callback
+                        progress_callback=progress_callback,
+                        max_age_hours=1  # Check for updates every hour on startup
                     )
                 )
                 
@@ -257,26 +249,29 @@ class QSOForm(ttk.Frame):
                     else:
                         last_update_str = "Never"
                     
-                    self.progress_dialog.show_final_status(
+                    # Schedule UI update on main thread
+                    self.after(0, lambda: self.progress_dialog.show_final_status(
                         "Roster update completed",
                         f"Ready with {member_count:,} members | Updated: {last_update_str}"
-                    )
+                    ))
                     # Auto-close after showing status for a few seconds and update display
                     def close_and_update():
                         self.progress_dialog.close()
                         self._update_roster_status_display()
                     self.after(3000, close_and_update)
                 else:
-                    self.progress_dialog.show_final_status(
+                    # Schedule UI update on main thread
+                    self.after(0, lambda: self.progress_dialog.show_final_status(
                         "Roster update failed",
                         message
-                    )
+                    ))
                     
             except Exception as e:
-                self.progress_dialog.update_status(
+                # Schedule UI update on main thread
+                self.after(0, lambda: self.progress_dialog.update_status(
                     "Roster update error",
                     str(e)
-                )
+                ))
             finally:
                 if loop:
                     loop.close()
@@ -284,9 +279,6 @@ class QSOForm(ttk.Frame):
         # Run in thread to avoid blocking UI
         thread = threading.Thread(target=update_worker, daemon=True)
         thread.start()
-        
-        # Wait for completion with timeout
-        thread.join(timeout=30)  # 30 second timeout
 
     def _load_backup_config(self) -> dict:
         """Load backup configuration from file."""
@@ -886,10 +878,25 @@ class QSOForm(ttk.Frame):
             freq_str = f"{spot.frequency:.3f}"  # Show 3 decimal places for accuracy
             snr_str = f"{spot.snr}dB" if spot.snr else ""
             
-            # Insert at the top of the tree
+            # Check for existing spots from the same callsign and remove them
+            duplicate_found = False
+            children = self.spots_tree.get_children()
+            for child in children:
+                values = self.spots_tree.item(child, 'values')
+                if values and len(values) > 1 and values[1] == spot.callsign:
+                    # Found duplicate callsign - remove the older spot
+                    old_freq = values[2] if len(values) > 2 else "unknown"
+                    print(f"Duplicate filter: Replacing {spot.callsign} {old_freq} MHz with {freq_str} MHz")
+                    self.spots_tree.delete(child)
+                    duplicate_found = True
+            
+            # Insert new spot at the top of the tree
             item = self.spots_tree.insert("", 0, values=(
                 time_str, spot.callsign, freq_str, spot.band, spot.spotter, snr_str
             ))
+            
+            if not duplicate_found:
+                print(f"New spot: {spot.callsign} {freq_str} MHz {spot.band} ({spot.spotter})")
             
             # Keep only the last 50 spots to avoid memory issues
             children = self.spots_tree.get_children()

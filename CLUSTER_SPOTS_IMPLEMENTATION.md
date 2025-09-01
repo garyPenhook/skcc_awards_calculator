@@ -38,6 +38,7 @@ Successfully integrated SKCC-filtered cluster spots using Fabian DJ5CW's CW-Club
 ### 1. Cluster Spots Features
 ✅ **SKCC-Only Filtering**: Pre-filtered feed shows only SKCC member activity
 ✅ **Real-Time Display**: Live spots shown in dedicated treeview
+✅ **Duplicate Filtering**: Only shows most recent spot per callsign (no repeats)
 ✅ **Auto-Fill Integration**: Double-click spots to auto-fill QSO form
 ✅ **Connection Management**: Easy connect/disconnect with status display
 ✅ **Thread-Safe Updates**: Background spot reception with GUI updates
@@ -142,9 +143,11 @@ Time  Call      Freq (MHz)  Band  Spotter     SNR
 
 #### Pro Tips:
 - **Fresh Spots**: Most recent spots appear at top of list
+- **No Duplicates**: Each callsign appears only once (most recent frequency)
 - **Band Monitoring**: Watch for activity on your preferred bands
 - **State Info**: Combined with roster data for complete station information
 - **Timing Integration**: Start time begins automatically when callsign is filled
+- **Frequency Updates**: Duplicate callsigns update with latest frequency/band
 
 ### 5. Benefits for SKCC Logging
 

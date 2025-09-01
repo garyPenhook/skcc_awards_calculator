@@ -312,13 +312,15 @@ class RosterManager:
         self._update_in_progress = False
     
     async def ensure_roster_updated(self, force: bool = False, 
-                                  progress_callback=None) -> Tuple[bool, str]:
+                                  progress_callback=None, 
+                                  max_age_hours: int = 24) -> Tuple[bool, str]:
         """
         Ensure the roster is up to date.
         
         Args:
             force: Force update even if roster is recent
             progress_callback: Optional callback for progress updates
+            max_age_hours: Maximum age in hours before update is needed
             
         Returns:
             (success, message) tuple
@@ -331,7 +333,7 @@ class RosterManager:
             
             # Try to clean up database first if there are issues
             try:
-                if not force and not self.db.needs_update():
+                if not force and not self.db.needs_update(max_age_hours):
                     count = self.db.get_member_count()
                     return True, f"Roster is current ({count:,} members)"
             except Exception as e:
