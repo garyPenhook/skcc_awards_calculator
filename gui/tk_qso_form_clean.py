@@ -122,6 +122,9 @@ class QSOForm(ttk.Frame):
         super().__init__(master, padding=12)
         self.pack(fill="both", expand=True)
         
+        # QSO timing tracking
+        self.qso_start_time = None  # Will be set when callsign is entered
+        
         # Show progress dialog during initialization
         self.progress_dialog = RosterProgressDialog(master)
         
@@ -481,8 +484,21 @@ class QSOForm(ttk.Frame):
         try:
             now = datetime.now()
             utc_now = now.astimezone(timezone.utc)
-            display_time = f"{now.strftime('%H:%M:%S')} local ({utc_now.strftime('%H:%M:%S')} UTC)"
-            self.time_display_var.set(display_time)
+            
+            if self.qso_start_time:
+                # QSO in progress - show duration
+                duration = utc_now - self.qso_start_time
+                duration_minutes = int(duration.total_seconds() / 60)
+                duration_seconds = int(duration.total_seconds() % 60)
+                
+                display_time = (f"QSO in progress: {duration_minutes:02d}:{duration_seconds:02d} "
+                               f"(Started: {self.qso_start_time.strftime('%H:%M:%S UTC')})")
+                self.time_display_var.set(display_time)
+            else:
+                # No QSO in progress - show current time
+                display_time = f"{now.strftime('%H:%M:%S')} local ({utc_now.strftime('%H:%M:%S')} UTC)"
+                self.time_display_var.set(display_time)
+                
             self.after(1000, self._update_time_display)
         except Exception as e:
             print(f"Time display error: {e}")
@@ -491,6 +507,15 @@ class QSOForm(ttk.Frame):
     def _on_callsign_change(self, *args):
         """Handle callsign field changes for auto-complete and country lookup."""
         callsign = self.call_var.get().upper().strip()
+        
+        # Capture QSO start time when callsign is first entered
+        if callsign and self.qso_start_time is None:
+            self.qso_start_time = datetime.now().astimezone(timezone.utc)
+            print(f"QSO started with {callsign} at {self.qso_start_time.strftime('%H:%M:%S UTC')}")
+        
+        # Reset start time if callsign is cleared
+        if not callsign:
+            self.qso_start_time = None
         
         # Lookup country from callsign
         if callsign:
@@ -580,13 +605,22 @@ class QSOForm(ttk.Frame):
             if not self.call_var.get().strip():
                 raise ValueError("Enter a callsign.")
             
-            # Get current local time and convert to UTC while preserving DST
+            # Get current local time and convert to UTC for end time
             local_now = datetime.now()  # Local time (includes DST)
-            utc_now = local_now.astimezone(timezone.utc)  # Convert to UTC
+            utc_end_time = local_now.astimezone(timezone.utc)  # Convert to UTC
+            
+            # Use the captured start time, or current time if none captured
+            if self.qso_start_time:
+                start_utc = self.qso_start_time
+            else:
+                # No start time captured (shouldn't happen), use current time
+                start_utc = utc_end_time
+                print("Warning: No QSO start time captured, using current time")
             
             q = QSO(
                 call=self.call_var.get().strip().upper(),
-                when=utc_now,   # UTC time converted from local time
+                when=start_utc,      # QSO start time (when callsign was entered)
+                time_off=utc_end_time,  # QSO end time (when Save was pressed)
                 freq_mhz=self._parse_float(self.freq_var.get()),
                 band=(self.band_var.get().strip().upper() or None),
                 rst_s=(self.rst_s_var.get().strip() or None),
@@ -597,6 +631,12 @@ class QSOForm(ttk.Frame):
                 country=(self.country_var.get().strip() or None),
                 state=(self.state_var.get().strip().upper() or None),
             )
+            
+            # Calculate QSO duration for display
+            duration = utc_end_time - start_utc
+            duration_minutes = int(duration.total_seconds() / 60)
+            duration_seconds = int(duration.total_seconds() % 60)
+            
             fields = q.to_adif_fields()
             append_record(self.adif_var.get(), fields)
             
@@ -606,7 +646,16 @@ class QSOForm(ttk.Frame):
             # Add the QSO to the recent QSOs view
             self._add_qso_to_view(q)
             
-            messagebox.showinfo("Saved", f"QSO with {q.call} appended to ADIF file.\nCountry: {q.country}\nState: {q.state}")
+            # Enhanced save message with duration info
+            duration_text = f"Duration: {duration_minutes:02d}:{duration_seconds:02d}" if duration_minutes > 0 or duration_seconds > 0 else "Duration: <1 sec"
+            messagebox.showinfo("Saved", 
+                f"QSO with {q.call} saved to ADIF file.\n"
+                f"{duration_text}\n"
+                f"Country: {q.country}\n"
+                f"State: {q.state}\n"
+                f"Start: {start_utc.strftime('%H:%M:%S UTC')}\n"
+                f"End: {utc_end_time.strftime('%H:%M:%S UTC')}")
+            
             self._clear_fields()
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -620,6 +669,9 @@ class QSOForm(ttk.Frame):
         self.their_skcc_var.set("")
         self.country_var.set("")
         self.state_var.set("")
+        
+        # Reset QSO start time for next QSO
+        self.qso_start_time = None
 
     def _parse_float(self, s):
         if not s.strip():

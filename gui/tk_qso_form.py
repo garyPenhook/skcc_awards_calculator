@@ -38,6 +38,9 @@ class QSOForm(ttk.Frame):
         super().__init__(master, padding=12)
         self.pack(fill="both", expand=True)
         
+        # QSO timing tracking
+        self.qso_start_time = None  # Will be set when callsign is entered
+        
         # Initialize roster manager
         self.roster_manager = RosterManager()
         
