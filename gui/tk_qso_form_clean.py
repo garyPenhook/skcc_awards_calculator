@@ -10,6 +10,7 @@ import json
 import shutil
 import asyncio
 from pathlib import Path
+from typing import Optional
 
 # Add the repo root to Python path for imports
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +22,7 @@ from models.qso import QSO
 from adif_io.adif_writer import append_record
 from utils.roster_manager import RosterManager
 from utils.backup_manager import backup_manager
+from utils.cluster_client import SKCCClusterClient, ClusterSpot
 
 # Add backend services for country lookup
 BACKEND_APP = ROOT / "backend" / "app"
@@ -125,6 +127,9 @@ class QSOForm(ttk.Frame):
         # QSO timing tracking
         self.qso_start_time = None  # Will be set when callsign is entered
         
+        # Cluster client initialization
+        self.cluster_client = None
+        
         # Show progress dialog during initialization
         self.progress_dialog = RosterProgressDialog(master)
         
@@ -140,6 +145,11 @@ class QSOForm(ttk.Frame):
         
         # Close progress dialog
         self.progress_dialog.close()
+
+    def __del__(self):
+        """Cleanup when the form is destroyed."""
+        if hasattr(self, 'cluster_client') and self.cluster_client:
+            self.cluster_client.disconnect()
 
     def _initialize_roster(self):
         """Initialize roster manager with progress updates."""
@@ -444,6 +454,61 @@ class QSOForm(ttk.Frame):
         
         # Update roster status display
         self._update_roster_status_display()
+        r += 1
+
+        # SKCC Cluster Spots section
+        ttk.Label(self, text="SKCC Cluster Spots:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
+        r += 1
+        
+        # Cluster control frame
+        cluster_control_frame = ttk.Frame(self)
+        cluster_control_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
+        
+        self.cluster_connect_btn = ttk.Button(cluster_control_frame, text="Connect to Cluster", command=self._toggle_cluster)
+        self.cluster_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
+        
+        self.cluster_status_var = tk.StringVar(value="Disconnected")
+        self.cluster_status_label = ttk.Label(cluster_control_frame, textvariable=self.cluster_status_var, 
+                 foreground="red", font=("Arial", 9))
+        self.cluster_status_label.pack(side=tk.LEFT)
+        r += 1
+        
+        # Cluster spots treeview
+        spots_frame = ttk.Frame(self)
+        spots_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
+        
+        # Configure spots columns
+        spots_columns = ("Time", "Call", "Freq", "Band", "Spotter", "SNR")
+        self.spots_tree = ttk.Treeview(spots_frame, columns=spots_columns, show="headings", height=8)
+        
+        # Configure spots column headings and widths
+        self.spots_tree.heading("Time", text="Time UTC")
+        self.spots_tree.heading("Call", text="Call")
+        self.spots_tree.heading("Freq", text="Freq (MHz)")
+        self.spots_tree.heading("Band", text="Band")
+        self.spots_tree.heading("Spotter", text="Spotter")
+        self.spots_tree.heading("SNR", text="SNR")
+        
+        self.spots_tree.column("Time", width=70, minwidth=60)
+        self.spots_tree.column("Call", width=90, minwidth=80)
+        self.spots_tree.column("Freq", width=90, minwidth=80)
+        self.spots_tree.column("Band", width=60, minwidth=50)
+        self.spots_tree.column("Spotter", width=100, minwidth=80)
+        self.spots_tree.column("SNR", width=60, minwidth=40)
+        
+        # Add scrollbar for spots treeview
+        spots_scrollbar = ttk.Scrollbar(spots_frame, orient=tk.VERTICAL, command=self.spots_tree.yview)
+        self.spots_tree.configure(yscrollcommand=spots_scrollbar.set)
+        
+        # Pack spots treeview and scrollbar
+        self.spots_tree.pack(side=tk.LEFT, fill="both", expand=True)
+        spots_scrollbar.pack(side=tk.RIGHT, fill="y")
+        
+        # Bind double-click to auto-fill frequency
+        self.spots_tree.bind('<Double-Button-1>', self._on_spot_double_click)
+        
+        # Configure grid weights for spots section
+        spots_frame.columnconfigure(0, weight=1)
 
     def _update_roster_status_display(self):
         """Update the roster status display in the main form."""
@@ -765,6 +830,100 @@ class QSOForm(ttk.Frame):
         folder = filedialog.askdirectory(title="Select backup folder")
         if folder:
             var.set(folder)
+
+    def _toggle_cluster(self):
+        """Toggle cluster connection on/off."""
+        if self.cluster_client and self.cluster_client.connected:
+            # Disconnect
+            self.cluster_client.disconnect()
+            self.cluster_client = None
+            self.cluster_connect_btn.config(text="Connect to Cluster")
+            self.cluster_status_var.set("Disconnected")
+            self.cluster_status_label.config(foreground="red")
+        else:
+            # Connect - prompt for callsign
+            callsign = self._get_cluster_callsign()
+            if not callsign:
+                return
+                
+            self.cluster_client = SKCCClusterClient(callsign, self._on_new_spot)
+            
+            if self.cluster_client.connect():
+                self.cluster_connect_btn.config(text="Disconnect")
+                self.cluster_status_var.set(f"Connected as {callsign}")
+                self.cluster_status_label.config(foreground="green")
+            else:
+                self.cluster_client = None
+                self.cluster_status_var.set("Connection failed")
+                self.cluster_status_label.config(foreground="red")
+
+    def _on_new_spot(self, spot: ClusterSpot):
+        """Handle new cluster spot."""
+        # Use after() to safely update GUI from background thread
+        self.after(0, self._add_spot_to_tree, spot)
+
+    def _add_spot_to_tree(self, spot: ClusterSpot):
+        """Add a new spot to the spots treeview (thread-safe)."""
+        try:
+            # Format values for display
+            time_str = spot.time_utc.strftime("%H:%M")
+            freq_str = f"{spot.frequency:.1f}"
+            snr_str = f"{spot.snr}dB" if spot.snr else ""
+            
+            # Insert at the top of the tree
+            item = self.spots_tree.insert("", 0, values=(
+                time_str, spot.callsign, freq_str, spot.band, spot.spotter, snr_str
+            ))
+            
+            # Keep only the last 50 spots to avoid memory issues
+            children = self.spots_tree.get_children()
+            if len(children) > 50:
+                for child in children[50:]:
+                    self.spots_tree.delete(child)
+                    
+            # Auto-scroll to show new spot
+            self.spots_tree.see(item)
+            
+        except Exception as e:
+            print(f"Error adding spot to tree: {e}")
+
+    def _on_spot_double_click(self, event):
+        """Handle double-click on a cluster spot to auto-fill frequency."""
+        try:
+            item = self.spots_tree.selection()[0]
+            values = self.spots_tree.item(item, 'values')
+            
+            if values:
+                callsign = values[1]
+                frequency = values[2]
+                band = values[3]
+                
+                # Auto-fill the form
+                self.call_var.set(callsign)
+                self.freq_var.set(frequency)
+                self.band_var.set(band)
+                
+                # Focus on the call entry to trigger any auto-fill logic
+                self.call_entry.focus_set()
+                
+                print(f"Auto-filled from spot: {callsign} on {frequency} MHz ({band})")
+                
+        except (IndexError, Exception) as e:
+            print(f"Error handling spot double-click: {e}")
+
+    def _get_cluster_callsign(self) -> Optional[str]:
+        """Prompt user for cluster callsign."""
+        from tkinter import simpledialog
+        
+        callsign = simpledialog.askstring(
+            "Cluster Connection",
+            "Enter your callsign for cluster connection:\n(e.g., W4GNS-SKCC)",
+            initialvalue="W4GNS-SKCC"
+        )
+        
+        if callsign:
+            return callsign.upper().strip()
+        return None
 
 def main():
     root = tk.Tk()
