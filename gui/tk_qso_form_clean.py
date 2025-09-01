@@ -168,7 +168,8 @@ class QSOForm(ttk.Frame):
                     try:
                         last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
                         last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    except:
+                    except (ValueError, TypeError) as e:
+                        print(f"Warning: Could not parse date {last_update}: {e}")
                         last_update_str = str(last_update)
                 else:
                     last_update_str = last_update.strftime("%Y-%m-%d %H:%M:%S UTC")
@@ -194,7 +195,8 @@ class QSOForm(ttk.Frame):
             # Create a minimal roster manager or use a dummy
             try:
                 self.roster_manager = RosterManager()
-            except:
+            except Exception as e:
+                print(f"Warning: Could not create roster manager: {e}")
                 # Create a dummy roster manager that won't crash
                 class DummyRosterManager:
                     def lookup_member(self, call): return None
