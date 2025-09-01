@@ -110,6 +110,16 @@ The dedicated W4GNS SKCC Logger provides enhanced QSO logging with DXCC integrat
 🌍 **Backup Configuration**: Configurable automatic backup system with folder selection  
 🌍 **Clean Interface**: Simplified, focused interface for efficient QSO logging  
 
+### Real-Time Cluster Spots Integration
+
+📡 **SKCC-Filtered RBN Spots**: Real-time spots from Reverse Beacon Network showing only SKCC members  
+📡 **CW-Club Gateway**: Uses Fabian DJ5CW's gateway at [rbn.telegraphy.de](http://rbn.telegraphy.de) for pre-filtered spots  
+📡 **Auto-Fill from Spots**: Double-click any spot to auto-populate QSO form with callsign, frequency, and band  
+📡 **Real-Time Display**: Live spot updates in dedicated treeview within the logger interface  
+📡 **Thread-Safe Operation**: Background spot monitoring without blocking the GUI  
+📡 **Connection Management**: Easy connect/disconnect with status indicators  
+📡 **Award Hunting Support**: Enhanced station awareness for finding needed SKCC members  
+
 **Launch W4GNS SKCC Logger**:
 ```bash
 python w4gns_skcc_logger.py
@@ -120,6 +130,28 @@ python w4gns_skcc_logger.py
 - **State Field**: Manual entry for US states and Canadian provinces
 - **SKCC Number**: Auto-filled from 30,000+ member roster database
 - **Standard ADIF**: Uses COUNTRY and STATE fields recognized by SKCC logging software
+
+### Cluster Spots Quick Setup
+
+To enable real-time SKCC cluster spots in the logger:
+
+1. **Configure Filters**: Visit [rbn.telegraphy.de/web](http://rbn.telegraphy.de/web)
+   - Enter your callsign
+   - Enable "Club members" filter  
+   - Select "SKCC" from club dropdown
+   - Save settings
+
+2. **Connect in Logger**: 
+   - Launch the W4GNS SKCC Logger
+   - Click "Connect to Cluster" button
+   - Enter your callsign when prompted (e.g., "W4GNS-SKCC")
+
+3. **Use Real-Time Spots**:
+   - SKCC member spots appear automatically
+   - Double-click any spot to auto-fill QSO form
+   - Start logging with enhanced station awareness
+
+**More Details**: See [CLUSTER_SPOTS_IMPLEMENTATION.md](CLUSTER_SPOTS_IMPLEMENTATION.md) for comprehensive setup and troubleshooting
 
 **Launch QSO Logger**:
 - **GUI**: Run `run_qso_logger.bat` or `python -m gui.tk_qso_form`
