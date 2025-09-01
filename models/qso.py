@@ -19,6 +19,9 @@ class QSO:
     their_skcc: Optional[str] = None
     my_skcc: Optional[str] = None
     my_key: Optional[KeyType] = None  # REQUIRED for Triple Key
+    # QTH information
+    country: Optional[str] = None
+    state: Optional[str] = None
 
     @staticmethod
     def _utc(date: datetime) -> datetime:
@@ -64,6 +67,10 @@ class QSO:
 
         # ADIF 3.1.5 standard: your key type
         put("MY_MORSE_KEY_TYPE", DISPLAY_LABELS[self.my_key])
+
+        # QTH information
+        put("COUNTRY", self.country)
+        put("STATE", self.state)
 
         # App-scoped mirror for robust parsing
         put("APP_SKCCAC_KEY", self.my_key.value)

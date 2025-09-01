@@ -99,6 +99,28 @@ The application now includes a complete QSO logging system that writes ADIF 3.1.
 🎯 **Atomic File Operations**: Safe append operations prevent log corruption  
 🎯 **GUI and CLI**: Both graphical form and command-line interfaces available  
 
+### W4GNS SKCC Logger
+
+The dedicated W4GNS SKCC Logger provides enhanced QSO logging with DXCC integration:
+
+🌍 **Auto Country Lookup**: Automatically determines country from callsign prefix using DXCC database  
+🌍 **State/Province Support**: Manual entry field for state/province information  
+🌍 **ADIF Country/State Fields**: Writes standard COUNTRY and STATE fields to ADIF files  
+🌍 **SKCC Roster Integration**: Auto-complete callsigns and auto-fill SKCC member numbers  
+🌍 **Backup Configuration**: Configurable automatic backup system with folder selection  
+🌍 **Clean Interface**: Simplified, focused interface for efficient QSO logging  
+
+**Launch W4GNS SKCC Logger**:
+```bash
+python w4gns_skcc_logger.py
+```
+
+**Features for SKCC Logger Import Compatibility**:
+- **Country Field**: Auto-populated from callsign (W/K/N = United States, VE = Canada, etc.)
+- **State Field**: Manual entry for US states and Canadian provinces
+- **SKCC Number**: Auto-filled from 30,000+ member roster database
+- **Standard ADIF**: Uses COUNTRY and STATE fields recognized by SKCC logging software
+
 **Launch QSO Logger**:
 - **GUI**: Run `run_qso_logger.bat` or `python -m gui.tk_qso_form`
 - **CLI**: `python -m cli.qso --help` for command-line options

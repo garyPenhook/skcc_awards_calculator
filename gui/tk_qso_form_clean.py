@@ -8,6 +8,7 @@ import sys
 import threading
 import json
 import shutil
+import asyncio
 from pathlib import Path
 
 # Add the repo root to Python path for imports
@@ -33,13 +34,99 @@ except ImportError:
     def get_dxcc_country(call):
         return None
 
+class RosterProgressDialog:
+    """Progress dialog for roster updates."""
+    
+    def __init__(self, parent):
+        self.parent = parent
+        self.dialog = tk.Toplevel(parent)
+        self.dialog.title("W4GNS SKCC Logger - Initializing")
+        self.dialog.geometry("400x200")
+        self.dialog.resizable(False, False)
+        
+        # Center the dialog
+        self.dialog.transient(parent)
+        self.dialog.grab_set()
+        
+        # Center on parent
+        self.dialog.geometry("+%d+%d" % (
+            parent.winfo_rootx() + 50,
+            parent.winfo_rooty() + 50
+        ))
+        
+        # Create widgets
+        main_frame = ttk.Frame(self.dialog, padding=20)
+        main_frame.pack(fill="both", expand=True)
+        
+        ttk.Label(main_frame, text="W4GNS SKCC Logger", 
+                 font=("Arial", 14, "bold")).pack(pady=(0, 10))
+        
+        self.status_label = ttk.Label(main_frame, text="Checking member roster...")
+        self.status_label.pack(pady=5)
+        
+        self.progress = ttk.Progressbar(main_frame, mode='indeterminate')
+        self.progress.pack(fill="x", pady=10)
+        self.progress.start()
+        
+        self.detail_label = ttk.Label(main_frame, text="", foreground="gray")
+        self.detail_label.pack(pady=5)
+        
+        # Status text area
+        self.status_text = tk.Text(main_frame, height=4, width=50, font=("Consolas", 8))
+        self.status_text.pack(fill="both", expand=True, pady=(10, 0))
+        
+        # Close button (initially hidden)
+        self.close_button = ttk.Button(main_frame, text="Close", command=self.close)
+        self.close_button.pack_forget()  # Hidden initially
+        
+    def update_status(self, message, detail=""):
+        """Update the status message and details."""
+        if not self.dialog:
+            return
+            
+        self.status_label.config(text=message)
+        if detail:
+            self.detail_label.config(text=detail)
+        
+        # Add to status log
+        timestamp = datetime.now().strftime("%H:%M:%S")
+        self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
+        if detail:
+            self.status_text.insert(tk.END, f"           {detail}\n")
+        self.status_text.see(tk.END)
+        self.dialog.update()
+        
+    def show_final_status(self, message, detail=""):
+        """Show final status and enable close button."""
+        if not self.dialog:
+            return
+            
+        self.update_status(message, detail)
+        self.progress.stop()
+        self.close_button.pack(pady=(10, 0))  # Show close button
+        
+    def close(self):
+        """Close the progress dialog."""
+        try:
+            if hasattr(self, 'progress') and self.progress:
+                self.progress.stop()
+            if hasattr(self, 'dialog') and self.dialog:
+                self.dialog.destroy()
+                self.dialog = None
+        except tk.TclError:
+            # Dialog already destroyed
+            pass
+
 class QSOForm(ttk.Frame):
     def __init__(self, master=None):
         super().__init__(master, padding=12)
         self.pack(fill="both", expand=True)
         
-        # Initialize roster manager
-        self.roster_manager = RosterManager()
+        # Show progress dialog during initialization
+        self.progress_dialog = RosterProgressDialog(master)
+        
+        # Initialize roster manager with progress updates
+        self._initialize_roster()
         
         # Initialize backup configuration
         self.backup_config_file = Path.home() / ".skcc_awards" / "backup_config.json"
@@ -47,6 +134,146 @@ class QSOForm(ttk.Frame):
         
         self._build_widgets()
         self._update_time_display()
+        
+        # Close progress dialog
+        self.progress_dialog.close()
+
+    def _initialize_roster(self):
+        """Initialize roster manager with progress updates."""
+        try:
+            self.progress_dialog.update_status("Initializing roster manager...")
+            self.roster_manager = RosterManager()
+            
+            # Get current roster status
+            status = self.roster_manager.get_status()
+            member_count = status.get('member_count', 0)
+            last_update = status.get('last_update')
+            needs_update = status.get('needs_update', False)
+            
+            if last_update:
+                if isinstance(last_update, str):
+                    try:
+                        last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+                        last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                    except:
+                        last_update_str = str(last_update)
+                else:
+                    last_update_str = last_update.strftime("%Y-%m-%d %H:%M:%S UTC")
+            else:
+                last_update_str = "Never"
+            
+            self.progress_dialog.update_status(
+                "Roster status checked", 
+                f"Members: {member_count:,} | Last update: {last_update_str}"
+            )
+            
+            if needs_update:
+                self.progress_dialog.update_status("Roster update needed, checking for updates...")
+                # Run roster update in a thread to avoid blocking UI
+                self._update_roster_async()
+            else:
+                # Show final status with close button
+                self.progress_dialog.show_final_status(
+                    "Roster is current", 
+                    f"Ready to log QSOs with {member_count:,} members"
+                )
+                # Auto-close after showing status for a few seconds
+                def close_and_update():
+                    self.progress_dialog.close()
+                    self._update_roster_status_display()
+                self.after(3000, close_and_update)
+                
+        except Exception as e:
+            self.progress_dialog.update_status(
+                f"Roster initialization error: {e}",
+                "Continuing without roster auto-fill"
+            )
+            # Create a minimal roster manager or use a dummy
+            try:
+                self.roster_manager = RosterManager()
+            except:
+                # Create a dummy roster manager that won't crash
+                class DummyRosterManager:
+                    def lookup_member(self, call): return None
+                    def search_callsigns(self, prefix, limit=10): return []
+                    async def ensure_roster_updated(self, force=False, progress_callback=None):
+                        return False, "No roster manager available"
+                    def get_status(self):
+                        return {'member_count': 0, 'last_update': None, 'needs_update': False}
+                self.roster_manager = DummyRosterManager()
+                
+    def _update_roster_async(self):
+        """Update roster in background with progress updates."""
+        # Only update if we have a real roster manager
+        if not hasattr(self.roster_manager, 'ensure_roster_updated'):
+            self.progress_dialog.update_status("Roster update skipped", "No roster manager available")
+            return
+            
+        def update_worker():
+            def progress_callback(message):
+                self.progress_dialog.update_status("Updating roster...", message)
+            
+            loop = None
+            try:
+                # Use asyncio to run the async roster update
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                success, message = loop.run_until_complete(
+                    self.roster_manager.ensure_roster_updated(
+                        force=False, 
+                        progress_callback=progress_callback
+                    )
+                )
+                
+                if success:
+                    status = self.roster_manager.get_status()
+                    member_count = status.get('member_count', 0)
+                    last_update = status.get('last_update')
+                    
+                    # Format last update time
+                    if last_update:
+                        try:
+                            if isinstance(last_update, str):
+                                last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+                            else:
+                                last_update_dt = last_update
+                            last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                        except:
+                            last_update_str = str(last_update)
+                    else:
+                        last_update_str = "Never"
+                    
+                    self.progress_dialog.show_final_status(
+                        "Roster update completed",
+                        f"Ready with {member_count:,} members | Updated: {last_update_str}"
+                    )
+                    # Auto-close after showing status for a few seconds and update display
+                    def close_and_update():
+                        self.progress_dialog.close()
+                        self._update_roster_status_display()
+                    self.after(3000, close_and_update)
+                else:
+                    self.progress_dialog.show_final_status(
+                        "Roster update failed",
+                        message
+                    )
+                    
+            except Exception as e:
+                self.progress_dialog.update_status(
+                    "Roster update error",
+                    str(e)
+                )
+            finally:
+                if loop:
+                    loop.close()
+        
+        # Run in thread to avoid blocking UI
+        thread = threading.Thread(target=update_worker, daemon=True)
+        thread.start()
+        
+        # Wait for completion with timeout
+        thread.join(timeout=30)  # 30 second timeout
 
     def _load_backup_config(self) -> dict:
         """Load backup configuration from file."""
@@ -199,6 +426,48 @@ class QSOForm(ttk.Frame):
         # Configure grid weights for proper resizing
         self.columnconfigure(1, weight=1)
         tree_frame.columnconfigure(0, weight=1)
+        r += 1
+
+        # Roster status display
+        ttk.Label(self, text="Roster Status:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
+        r += 1
+        
+        status_frame = ttk.Frame(self)
+        status_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
+        
+        self.roster_status_var = tk.StringVar()
+        ttk.Label(status_frame, textvariable=self.roster_status_var, 
+                 foreground="blue", font=("Arial", 9)).pack(anchor="w")
+        
+        # Update roster status display
+        self._update_roster_status_display()
+
+    def _update_roster_status_display(self):
+        """Update the roster status display in the main form."""
+        try:
+            if hasattr(self.roster_manager, 'get_status'):
+                status = self.roster_manager.get_status()
+                member_count = status.get('member_count', 0)
+                last_update = status.get('last_update')
+                
+                if last_update:
+                    try:
+                        if isinstance(last_update, str):
+                            last_update_dt = datetime.fromisoformat(last_update.replace('Z', '+00:00'))
+                        else:
+                            last_update_dt = last_update
+                        last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
+                    except:
+                        last_update_str = str(last_update)
+                else:
+                    last_update_str = "Never updated"
+                
+                status_text = f"Members: {member_count:,} | Last updated: {last_update_str}"
+                self.roster_status_var.set(status_text)
+            else:
+                self.roster_status_var.set("Roster manager not available")
+        except Exception as e:
+            self.roster_status_var.set(f"Status error: {e}")
 
     def _browse_adif(self):
         file_path = filedialog.askopenfilename(

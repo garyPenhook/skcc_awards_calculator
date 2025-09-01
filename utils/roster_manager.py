@@ -96,9 +96,17 @@ class RosterDatabase:
                             call TEXT NOT NULL,
                             suffix TEXT,
                             join_date TEXT,
+                            state TEXT,
                             updated_at TEXT NOT NULL
                         )
                     """)
+                    
+                    # Add state column if it doesn't exist (migration for existing databases)
+                    try:
+                        conn.execute("ALTER TABLE members ADD COLUMN state TEXT")
+                    except sqlite3.OperationalError:
+                        # Column already exists or other error, continue
+                        pass
                     
                     # Create index for fast callsign lookups
                     conn.execute("""
@@ -179,13 +187,13 @@ class RosterDatabase:
                 for i in range(0, len(members), batch_size):
                     batch = members[i:i + batch_size]
                     member_data = [
-                        (member.number, member.call.upper(), member.suffix, member.join_date, now)
+                        (member.number, member.call.upper(), member.suffix, member.join_date, member.state, now)
                         for member in batch
                     ]
                     
                     conn.executemany("""
-                        INSERT INTO members (number, call, suffix, join_date, updated_at)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO members (number, call, suffix, join_date, state, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?)
                     """, member_data)
                     
                     updated_count += len(batch)
@@ -201,8 +209,8 @@ class RosterDatabase:
         
         return self._execute_with_retry(operation)
     
-    def lookup_call(self, call: str) -> Optional[Tuple[int, str]]:
-        """Look up a member by callsign. Returns (number, suffix) or None."""
+    def lookup_call(self, call: str) -> Optional[Tuple[int, str, str]]:
+        """Look up a member by callsign. Returns (number, suffix, state) or None."""
         if not call:
             return None
         
@@ -212,25 +220,27 @@ class RosterDatabase:
             with self._get_connection() as conn:
                 # First try exact match
                 cursor = conn.execute(
-                    "SELECT number, suffix FROM members WHERE call = ?",
+                    "SELECT number, suffix, state FROM members WHERE call = ?",
                     (call_upper,)
                 )
                 row = cursor.fetchone()
                 if row:
                     suffix = row[1] or ""
-                    return (row[0], suffix)
+                    state = row[2] or ""
+                    return (row[0], suffix, state)
                 
                 # If no exact match, try without portable indicators
                 base_call = call_upper.split('/')[0]  # Remove /P, /M, etc.
                 if base_call != call_upper:
                     cursor = conn.execute(
-                        "SELECT number, suffix FROM members WHERE call = ?",
+                        "SELECT number, suffix, state FROM members WHERE call = ?",
                         (base_call,)
                     )
                     row = cursor.fetchone()
                     if row:
                         suffix = row[1] or ""
-                        return (row[0], suffix)
+                        state = row[2] or ""
+                        return (row[0], suffix, state)
             
             return None
         
@@ -246,7 +256,7 @@ class RosterDatabase:
             
             with self._get_connection() as conn:
                 cursor = conn.execute("""
-                    SELECT call, number, COALESCE(suffix, '') as suffix 
+                    SELECT call, number, COALESCE(suffix, '') as suffix, COALESCE(state, '') as state 
                     FROM members 
                     WHERE call LIKE ? 
                     ORDER BY call 
@@ -382,14 +392,15 @@ class RosterManager:
         Look up member information for a callsign.
         
         Returns:
-            Dict with 'number' and 'suffix' keys, or None if not found
+            Dict with 'number', 'suffix', and 'state' keys, or None if not found
         """
         result = self.db.lookup_call(call)
         if result:
-            number, suffix = result
+            number, suffix, state = result
             return {
                 'number': str(number) + suffix,
-                'suffix': suffix
+                'suffix': suffix,
+                'state': state or ''
             }
         return None
     
@@ -398,16 +409,17 @@ class RosterManager:
         Search for callsigns matching a prefix.
         
         Returns:
-            List of dicts with 'call', 'number', and 'suffix' keys
+            List of dicts with 'call', 'number', 'suffix', and 'state' keys
         """
         results = self.db.search_calls(prefix, limit)
         return [
             {
                 'call': call,
                 'number': str(number) + suffix,
-                'suffix': suffix
+                'suffix': suffix,
+                'state': state
             }
-            for call, number, suffix in results
+            for call, number, suffix, state in results
         ]
     
     def get_status(self) -> Dict[str, Any]:

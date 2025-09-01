@@ -50,6 +50,8 @@ class Member:
     join_date: str | None = None
     # SKCC achievement suffix: S=Senator(1000+), T=Tribune(50+), C=Centurion(100+)
     suffix: str | None = None
+    # State/Province from SKCC roster (e.g., "CA", "ON", "NC")
+    state: str | None = None
 
 @dataclass(frozen=True)
 class QSO:
@@ -586,7 +588,7 @@ def get_continent_from_call(call: str) -> str | None:
         return get_continent_from_country(country)
     return None
 
-ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+([A-Z0-9/]+)\s+(?P<call>[A-Z0-9/]+)")
+ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+(?P<call>[A-Z0-9/]+)\s+[\w\s-]+\s+[\w\s-]+\s+(?P<state>[A-Z]{2,3})\s+")
 
 async def fetch_member_roster(
     url: str | None = None,
@@ -660,7 +662,7 @@ def _parse_roster_text(text: str) -> List[Member]:
         rows = soup.find_all("tr")
         for tr in rows:
             cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"]) ]
-            if len(cells) < 2:
+            if len(cells) < 5:  # Need at least 5 cells for number, call, name, city, state
                 continue
             try:
                 # Extract numeric part and suffix from SKCC number (e.g., "660S" -> 660, "S")
@@ -680,7 +682,14 @@ def _parse_roster_text(text: str) -> List[Member]:
             if call_candidate:
                 call_candidate = normalize_call(call_candidate)
                 if call_candidate:  # Only add if normalization succeeded
-                    members.append(Member(call=call_candidate, number=number, suffix=suffix))
+                    # Extract state from cell[4] - format examples: "NC", "CA", "ON" (for Canada), etc.
+                    state = cells[4].strip() if len(cells) > 4 else None
+                    # Only keep 2-3 character state/province codes, filter out country codes
+                    if state and len(state) <= 3 and state.isalpha():
+                        state = state.upper()
+                    else:
+                        state = None
+                    members.append(Member(call=call_candidate, number=number, suffix=suffix, state=state))
         if members:
             return members
     except Exception:  # pragma: no cover
@@ -696,7 +705,8 @@ def _parse_roster_text(text: str) -> List[Member]:
         except ValueError:
             continue
         call = m.group("call").upper()
-        members.append(Member(call=call, number=number, suffix=suffix))
+        state = m.group("state") if m.group("state") else None
+        members.append(Member(call=call, number=number, suffix=suffix, state=state))
     return members
 
 async def fetch_award_thresholds(url: str = DEFAULT_AWARDS_URL, timeout: float = 15.0) -> List[Tuple[str, int]]:
