@@ -306,114 +306,156 @@ class QSOForm(ttk.Frame):
         return default_config
 
     def _build_widgets(self):
+        # Configure main grid weights for responsive layout
+        self.columnconfigure(0, weight=1)  # Left panel
+        self.columnconfigure(1, weight=1)  # Right panel
+        self.rowconfigure(0, weight=1)
+        
+        # Create main left and right frames
+        left_frame = ttk.LabelFrame(self, text="QSO Entry", padding=10)
+        left_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 5), pady=5)
+        
+        right_frame = ttk.Frame(self)
+        right_frame.grid(row=0, column=1, sticky="nsew", padx=(5, 0), pady=5)
+        
+        # Configure left frame for form elements
+        left_frame.columnconfigure(1, weight=1)
+        
+        # Build QSO form in left frame
+        self._build_qso_form(left_frame)
+        
+        # Build right panel with QSO history and cluster spots
+        self._build_right_panel(right_frame)
+        
+    def _build_qso_form(self, parent):
+        """Build the QSO entry form in the left panel."""
         r = 0
         
         # File selection
-        ttk.Label(self, text="ADIF Log File").grid(row=r, column=0, sticky="e", padx=6, pady=4)
-        file_frame = ttk.Frame(self)
+        ttk.Label(parent, text="ADIF Log File").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        file_frame = ttk.Frame(parent)
         file_frame.grid(row=r, column=1, sticky="ew", padx=6, pady=4)
         self.adif_var = tk.StringVar()
-        ttk.Entry(file_frame, textvariable=self.adif_var, width=40).pack(side=tk.LEFT, padx=(0, 6))
-        ttk.Button(file_frame, text="Browse", command=self._browse_adif).pack(side=tk.LEFT)
+        ttk.Entry(file_frame, textvariable=self.adif_var, width=40).pack(side=tk.LEFT, padx=(0, 6), fill="x", expand=True)
+        ttk.Button(file_frame, text="Browse", command=self._browse_adif).pack(side=tk.RIGHT)
         r += 1
 
         # Time display
-        ttk.Label(self, text="QSO Time:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="QSO Time:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.time_display_var = tk.StringVar()
-        ttk.Label(self, textvariable=self.time_display_var, foreground="green").grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Label(parent, textvariable=self.time_display_var, foreground="green").grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # Call with auto-complete
-        ttk.Label(self, text="Call").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Call").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.call_var = tk.StringVar()
-        self.call_entry = ttk.Entry(self, textvariable=self.call_var, width=20)
+        self.call_entry = ttk.Entry(parent, textvariable=self.call_var, width=20)
         self.call_entry.grid(row=r, column=1, sticky="w", padx=6, pady=4)
         self.call_var.trace_add('write', self._on_callsign_change)
         
         # Auto-complete listbox (initially hidden)
-        self.autocomplete_frame = ttk.Frame(self)
+        self.autocomplete_frame = ttk.Frame(parent)
         self.autocomplete_listbox = tk.Listbox(self.autocomplete_frame, height=5, width=30)
         self.autocomplete_listbox.bind('<Double-Button-1>', self._select_autocomplete)
         r += 1
 
         # Freq & Band
-        ttk.Label(self, text="Freq (MHz)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Freq (MHz)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.freq_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.freq_var, width=10).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.freq_var, width=10).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
-        ttk.Label(self, text="Band (e.g. 40M)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Band (e.g. 40M)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.band_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.band_var, width=10).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.band_var, width=10).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # Reports
-        ttk.Label(self, text="RST sent").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="RST sent").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.rst_s_var = tk.StringVar(value="599")
-        ttk.Entry(self, textvariable=self.rst_s_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.rst_s_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
-        ttk.Label(self, text="RST rcvd").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="RST rcvd").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.rst_r_var = tk.StringVar(value="599")
-        ttk.Entry(self, textvariable=self.rst_r_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.rst_r_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # Power
-        ttk.Label(self, text="Power (W)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Power (W)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.pwr_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.pwr_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.pwr_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # SKCC numbers
-        ttk.Label(self, text="Their SKCC #").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Their SKCC #").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.their_skcc_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.their_skcc_var, width=12).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.their_skcc_var, width=12).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # Country (auto-filled from callsign)
-        ttk.Label(self, text="Country").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Country").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.country_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.country_var, width=20).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.country_var, width=20).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # State (manual entry for US stations)
-        ttk.Label(self, text="State/Province").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="State/Province").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.state_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.state_var, width=8).grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        ttk.Entry(parent, textvariable=self.state_var, width=8).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
         # Key used (REQUIRED for Triple Key)
-        ttk.Label(self, text="Key used").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        ttk.Label(parent, text="Key used").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.key_var = tk.StringVar()
         options = [
             DISPLAY_LABELS[KeyType.STRAIGHT],
             DISPLAY_LABELS[KeyType.BUG],
             DISPLAY_LABELS[KeyType.SIDESWIPER],
         ]
-        self.key_combo = ttk.Combobox(self, textvariable=self.key_var, values=options, state="readonly", width=20)
+        self.key_combo = ttk.Combobox(parent, textvariable=self.key_var, values=options, state="readonly", width=20)
         self.key_combo.grid(row=r, column=1, sticky="w", padx=6, pady=4)
         self.key_combo.current(0)
         r += 1
 
         # Buttons
-        btn_row = ttk.Frame(self)
-        btn_row.grid(row=r, column=0, columnspan=3, pady=(12, 0))
-        ttk.Button(btn_row, text="Save QSO", command=self._save).grid(row=0, column=0, padx=6)
-        ttk.Button(btn_row, text="Backup Config", command=self._configure_backup).grid(row=0, column=1, padx=6)
-        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=2, padx=6)
+        btn_row = ttk.Frame(parent)
+        btn_row.grid(row=r, column=0, columnspan=2, pady=(12, 0))
+        ttk.Button(btn_row, text="Save QSO", command=self._save).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btn_row, text="Backup Config", command=self._configure_backup).pack(side=tk.LEFT, padx=6)
+        ttk.Button(btn_row, text="Quit", command=self._quit).pack(side=tk.LEFT, padx=6)
         r += 1
 
-        # Recent QSOs view
-        ttk.Label(self, text="Recent QSOs:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
+        # Roster status display
+        ttk.Label(parent, text="Roster Status:").grid(row=r, column=0, columnspan=2, sticky="w", padx=6, pady=(20, 5))
         r += 1
         
-        # Create treeview for recent QSOs
-        tree_frame = ttk.Frame(self)
-        tree_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
+        status_frame = ttk.Frame(parent)
+        status_frame.grid(row=r, column=0, columnspan=2, sticky="ew", padx=6, pady=5)
         
-        # Configure treeview columns
+        self.roster_status_var = tk.StringVar()
+        ttk.Label(status_frame, textvariable=self.roster_status_var, 
+                 foreground="blue", font=("Arial", 9)).pack(anchor="w")
+        
+        # Update roster status display
+        self._update_roster_status_display()
+        
+    def _build_right_panel(self, parent):
+        """Build the right panel with recent QSOs and cluster spots."""
+        # Configure right panel grid
+        parent.rowconfigure(0, weight=1)  # Recent QSOs
+        parent.rowconfigure(1, weight=1)  # Cluster spots
+        parent.columnconfigure(0, weight=1)
+        
+        # Recent QSOs section (top half of right panel)
+        qso_frame = ttk.LabelFrame(parent, text="Recent QSOs", padding=10)
+        qso_frame.grid(row=0, column=0, sticky="nsew", pady=(0, 5))
+        qso_frame.columnconfigure(0, weight=1)
+        qso_frame.rowconfigure(0, weight=1)
+        
+        # Create treeview for recent QSOs
         columns = ("Time", "Call", "Band", "SKCC", "Key")
-        self.qso_tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=10)
+        self.qso_tree = ttk.Treeview(qso_frame, columns=columns, show="headings", height=8)
         
         # Configure column headings and widths
         self.qso_tree.heading("Time", text="Time (Local)")
@@ -428,47 +470,23 @@ class QSOForm(ttk.Frame):
         self.qso_tree.column("SKCC", width=80, minwidth=60)
         self.qso_tree.column("Key", width=120, minwidth=100)
         
-        # Add scrollbar for treeview
-        tree_scrollbar = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.qso_tree.yview)
-        self.qso_tree.configure(yscrollcommand=tree_scrollbar.set)
+        # Add scrollbar for QSO treeview
+        qso_scrollbar = ttk.Scrollbar(qso_frame, orient=tk.VERTICAL, command=self.qso_tree.yview)
+        self.qso_tree.configure(yscrollcommand=qso_scrollbar.set)
         
-        # Pack treeview and scrollbar
-        self.qso_tree.pack(side=tk.LEFT, fill="both", expand=True)
-        tree_scrollbar.pack(side=tk.RIGHT, fill="y")
+        # Pack QSO treeview and scrollbar
+        self.qso_tree.grid(row=0, column=0, sticky="nsew")
+        qso_scrollbar.grid(row=0, column=1, sticky="ns")
         
-        # Configure grid weights for proper resizing
-        self.columnconfigure(1, weight=1)
-        tree_frame.columnconfigure(0, weight=1)
-        r += 1
-
-        # Roster status display
-        ttk.Label(self, text="Roster Status:").grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(20, 5))
-        r += 1
-        
-        status_frame = ttk.Frame(self)
-        status_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
-        
-        self.roster_status_var = tk.StringVar()
-        ttk.Label(status_frame, textvariable=self.roster_status_var, 
-                 foreground="blue", font=("Arial", 9)).pack(anchor="w")
-        
-        # Update roster status display
-        self._update_roster_status_display()
-        r += 1
-
-        # Add separator before cluster spots
-        separator = ttk.Separator(self, orient='horizontal')
-        separator.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=10)
-        r += 1
-
-        # SKCC Cluster Spots section
-        cluster_label = ttk.Label(self, text="SKCC Cluster Spots:", font=("Arial", 10, "bold"))
-        cluster_label.grid(row=r, column=0, columnspan=3, sticky="w", padx=6, pady=(10, 5))
-        r += 1
+        # Cluster spots section (bottom half of right panel)
+        cluster_frame = ttk.LabelFrame(parent, text="SKCC Cluster Spots", padding=10)
+        cluster_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
+        cluster_frame.columnconfigure(0, weight=1)
+        cluster_frame.rowconfigure(1, weight=1)  # Spots tree gets the space
         
         # Cluster control frame
-        cluster_control_frame = ttk.Frame(self)
-        cluster_control_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
+        cluster_control_frame = ttk.Frame(cluster_frame)
+        cluster_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
         
         self.cluster_connect_btn = ttk.Button(cluster_control_frame, text="Connect to Cluster", command=self._toggle_cluster)
         self.cluster_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
@@ -477,15 +495,10 @@ class QSOForm(ttk.Frame):
         self.cluster_status_label = ttk.Label(cluster_control_frame, textvariable=self.cluster_status_var, 
                  foreground="red", font=("Arial", 9))
         self.cluster_status_label.pack(side=tk.LEFT)
-        r += 1
         
         # Cluster spots treeview
-        spots_frame = ttk.Frame(self)
-        spots_frame.grid(row=r, column=0, columnspan=3, sticky="ew", padx=6, pady=5)
-        
-        # Configure spots columns
         spots_columns = ("Time", "Call", "Freq", "Band", "Spotter", "SNR")
-        self.spots_tree = ttk.Treeview(spots_frame, columns=spots_columns, show="headings", height=8)
+        self.spots_tree = ttk.Treeview(cluster_frame, columns=spots_columns, show="headings", height=8)
         
         # Configure spots column headings and widths
         self.spots_tree.heading("Time", text="Time UTC")
@@ -503,18 +516,15 @@ class QSOForm(ttk.Frame):
         self.spots_tree.column("SNR", width=60, minwidth=40)
         
         # Add scrollbar for spots treeview
-        spots_scrollbar = ttk.Scrollbar(spots_frame, orient=tk.VERTICAL, command=self.spots_tree.yview)
+        spots_scrollbar = ttk.Scrollbar(cluster_frame, orient=tk.VERTICAL, command=self.spots_tree.yview)
         self.spots_tree.configure(yscrollcommand=spots_scrollbar.set)
         
         # Pack spots treeview and scrollbar
-        self.spots_tree.pack(side=tk.LEFT, fill="both", expand=True)
-        spots_scrollbar.pack(side=tk.RIGHT, fill="y")
+        self.spots_tree.grid(row=1, column=0, sticky="nsew")
+        spots_scrollbar.grid(row=1, column=1, sticky="ns")
         
         # Bind double-click to auto-fill frequency
         self.spots_tree.bind('<Double-Button-1>', self._on_spot_double_click)
-        
-        # Configure grid weights for spots section
-        spots_frame.columnconfigure(0, weight=1)
 
     def _update_roster_status_display(self):
         """Update the roster status display in the main form."""
@@ -934,8 +944,8 @@ class QSOForm(ttk.Frame):
 def main():
     root = tk.Tk()
     root.title("W4GNS SKCC Logger - Enhanced with Cluster Spots")
-    root.geometry("600x950")  # Increased height for cluster spots section
-    root.minsize(580, 800)    # Minimum size to see all features
+    root.geometry("1200x700")  # Wider layout for two-column design
+    root.minsize(1000, 600)    # Minimum size to see all features
     
     app = QSOForm(root)
     root.mainloop()
