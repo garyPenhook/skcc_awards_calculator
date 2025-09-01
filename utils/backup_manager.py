@@ -18,7 +18,6 @@ class BackupManager:
         default_config = {
             "backup_enabled": True,
             "backup_folder": str(Path.home() / ".skcc_awards" / "backups"),
-            "secondary_backup": "",
             "max_backups": 10
         }
         
@@ -66,16 +65,6 @@ class BackupManager:
             backup_folder.mkdir(parents=True, exist_ok=True)
             primary_backup = backup_folder / backup_name
             shutil.copy2(source_file, primary_backup)
-            
-            # Secondary backup location (if configured)
-            secondary_path = self.config.get("secondary_backup", "").strip()
-            if secondary_path and Path(secondary_path).exists():
-                secondary_backup = Path(secondary_path) / backup_name
-                try:
-                    shutil.copy2(source_file, secondary_backup)
-                except Exception:
-                    # Secondary backup failed, but don't fail the whole operation
-                    pass
                     
             # Clean up old backups
             self._cleanup_old_backups(backup_folder, source_path.stem)

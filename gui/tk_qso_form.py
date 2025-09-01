@@ -13,7 +13,6 @@ if str(ROOT) not in sys.path:
 from models.key_type import KeyType, DISPLAY_LABELS, normalize
 from models.qso import QSO
 from adif_io.adif_writer import append_record
-from utils.theme_manager import theme_manager
 from utils.roster_manager import RosterManager
 from utils.backup_manager import backup_manager
 
@@ -30,10 +29,6 @@ class QSOForm(ttk.Frame):
         # Set to False if you want to use cached roster (faster startup)
         self.force_roster_update = True
         
-        # Apply theme to the parent window
-        if master:
-            theme_manager.apply_theme(master)
-            
         self._build_ui()
         
         # Delay roster update until the main loop is running
@@ -113,17 +108,7 @@ class QSOForm(ttk.Frame):
         ttk.Entry(self, textvariable=self.rst_r_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
-        # Station + Operator + Power
-        ttk.Label(self, text="Station callsign").grid(row=r, column=0, sticky="e", padx=6, pady=4)
-        self.station_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.station_var, width=20).grid(row=r, column=1, sticky="w", padx=6, pady=4)
-        r += 1
-
-        ttk.Label(self, text="Operator").grid(row=r, column=0, sticky="e", padx=6, pady=4)
-        self.op_var = tk.StringVar()
-        ttk.Entry(self, textvariable=self.op_var, width=20).grid(row=r, column=1, sticky="w", padx=6, pady=4)
-        r += 1
-
+        # Power
         ttk.Label(self, text="Power (W)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.pwr_var = tk.StringVar()
         ttk.Entry(self, textvariable=self.pwr_var, width=6).grid(row=r, column=1, sticky="w", padx=6, pady=4)
@@ -151,16 +136,8 @@ class QSOForm(ttk.Frame):
         # Buttons
         btn_row = ttk.Frame(self); btn_row.grid(row=r, column=0, columnspan=3, pady=(12, 0))
         ttk.Button(btn_row, text="Save QSO", command=self._save).grid(row=0, column=0, padx=6)
-        
-        # Backup config button
-        ttk.Button(btn_row, text="Backup ⚙", command=self._show_backup_info).grid(row=0, column=1, padx=6)
-        
-        # Theme toggle button
-        current_theme = "🌙" if theme_manager.current_theme == "light" else "☀️"
-        self.theme_button = ttk.Button(btn_row, text=current_theme, width=3, command=self._toggle_theme)
-        self.theme_button.grid(row=0, column=2, padx=6)
-        
-        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=3, padx=6)
+        ttk.Button(btn_row, text="Backup Config", command=self._configure_backup).grid(row=0, column=1, padx=6)
+        ttk.Button(btn_row, text="Quit", command=self._quit).grid(row=0, column=2, padx=6)
         r += 1
 
         # Recent QSOs view
@@ -306,6 +283,17 @@ class QSOForm(ttk.Frame):
                 # Search for matching callsigns
                 matches = self.roster_manager.search_callsigns(callsign, limit=10)
                 
+                # Check for exact match and auto-fill SKCC number
+                exact_match = None
+                for match in matches:
+                    if match['call'].upper() == callsign.upper():
+                        exact_match = match
+                        break
+                
+                if exact_match and not self.their_skcc_var.get():
+                    # Auto-fill SKCC number for exact match
+                    self.their_skcc_var.set(exact_match['number'])
+                
                 if matches:
                     # Show autocomplete listbox
                     self.autocomplete_listbox.delete(0, tk.END)
@@ -324,6 +312,9 @@ class QSOForm(ttk.Frame):
                 self._hide_autocomplete()
         else:
             self._hide_autocomplete()
+            # Clear SKCC number if callsign is too short
+            if len(callsign) < 2:
+                self.their_skcc_var.set("")
 
     def _hide_autocomplete(self):
         """Hide the autocomplete listbox."""
@@ -546,8 +537,6 @@ class QSOForm(ttk.Frame):
                 band=(self.band_var.get().strip().upper() or None),
                 rst_s=(self.rst_s_var.get().strip() or None),
                 rst_r=(self.rst_r_var.get().strip() or None),
-                station_callsign=(self.station_var.get().strip().upper() or None),
-                operator=(self.op_var.get().strip().upper() or None),
                 tx_pwr_w=(self._parse_float(self.pwr_var.get()) if self.pwr_var.get().strip() else None),
                 their_skcc=(self.their_skcc_var.get().strip().upper() or None),
                 my_key=normalize(self.key_var.get()),
@@ -578,41 +567,68 @@ class QSOForm(ttk.Frame):
     def _quit(self):
         self.winfo_toplevel().destroy()
 
-    def _toggle_theme(self) -> None:
-        """Toggle between light and dark themes."""
-        try:
-            new_theme = theme_manager.toggle_theme()
-            theme_manager.apply_theme(self.winfo_toplevel())
-            
-            # Update theme button icon
-            new_icon = "🌙" if new_theme == "light" else "☀️"
-            self.theme_button.configure(text=new_icon)
-        except Exception as e:
-            messagebox.showerror("Theme Error", f"Failed to toggle theme: {e}")
-
-    def _show_backup_info(self) -> None:
-        """Show backup information and configuration."""
-        backup_folder = backup_manager.get_backup_folder()
-        is_enabled = backup_manager.config.get("backup_enabled", True)
-        secondary = backup_manager.config.get("secondary_backup", "").strip()
+    def _configure_backup(self) -> None:
+        """Simple backup configuration dialog."""
+        config_window = tk.Toplevel(self.winfo_toplevel())
+        config_window.title("Backup Configuration")
+        config_window.geometry("500x200")
+        config_window.resizable(False, False)
         
-        info_text = f"""Automatic Backup System
+        main_frame = ttk.Frame(config_window, padding=12)
+        main_frame.pack(fill="both", expand=True)
+        
+        r = 0
+        
+        # Enable backup checkbox
+        backup_enabled_var = tk.BooleanVar(value=backup_manager.config.get("backup_enabled", True))
+        ttk.Checkbutton(main_frame, text="Enable automatic backups", 
+                       variable=backup_enabled_var).grid(row=r, column=0, columnspan=2, sticky="w", pady=4)
+        r += 1
+        
+        # Primary backup folder
+        ttk.Label(main_frame, text="Backup folder:").grid(row=r, column=0, sticky="w", pady=4)
+        r += 1
+        
+        backup_folder_var = tk.StringVar(value=backup_manager.config.get("backup_folder", ""))
+        folder_frame = ttk.Frame(main_frame)
+        folder_frame.grid(row=r, column=0, columnspan=2, sticky="ew", pady=4)
+        
+        ttk.Entry(folder_frame, textvariable=backup_folder_var, width=50).pack(side="left", fill="x", expand=True)
+        ttk.Button(folder_frame, text="Browse", 
+                  command=lambda: self._browse_folder(backup_folder_var)).pack(side="right", padx=(4, 0))
+        r += 1
+        
+        # Info label
+        info_text = ("Backups are created automatically when saving QSOs.\n" +
+                    "The last 10 backups are kept for each file.")
+        ttk.Label(main_frame, text=info_text, foreground="gray").grid(row=r, column=0, columnspan=2, sticky="w", pady=(12, 4))
+        r += 1
+        
+        # Buttons
+        btn_frame = ttk.Frame(main_frame)
+        btn_frame.grid(row=r, column=0, columnspan=2, pady=(12, 0))
+        
+        def save_config():
+            backup_manager.config.update({
+                "backup_enabled": backup_enabled_var.get(),
+                "backup_folder": backup_folder_var.get()
+            })
+            backup_manager.save_config()
+            config_window.destroy()
+            messagebox.showinfo("Saved", "Backup configuration saved.")
+        
+        ttk.Button(btn_frame, text="Save", command=save_config).pack(side="left", padx=(0, 6))
+        ttk.Button(btn_frame, text="Cancel", command=config_window.destroy).pack(side="left")
+        
+        main_frame.columnconfigure(0, weight=1)
+    
+    def _browse_folder(self, var: tk.StringVar) -> None:
+        """Browse for a folder and update the variable."""
+        folder = filedialog.askdirectory(title="Select backup folder")
+        if folder:
+            var.set(folder)
 
-Status: {'Enabled' if is_enabled else 'Disabled'}
-
-Primary Backup Folder:
-{backup_folder}
-
-Secondary Backup: {'Configured' if secondary else 'Not configured'}
-{secondary if secondary else '(Optional - for USB/network backup)'}
-
-Backups are created automatically when saving QSOs.
-The last 10 backups are kept for each ADIF file.
-
-To configure backup settings, edit:
-{backup_manager.config_file}"""
-
-        messagebox.showinfo("Backup Configuration", info_text)
+def main():
 
     def _load_backup_config(self) -> dict:
         """Load backup configuration from file."""
