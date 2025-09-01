@@ -18,12 +18,16 @@ try:
     from services.skcc import fetch_member_roster, Member
 except ImportError:
     # Fallback if backend services not available
+    from dataclasses import dataclass
+    from typing import Optional
+    
+    @dataclass(frozen=True)
     class Member:
-        def __init__(self, number, call, suffix=None, join_date=None):
-            self.number = number
-            self.call = call
-            self.suffix = suffix or ""
-            self.join_date = join_date
+        call: str
+        number: int
+        join_date: Optional[str] = None
+        suffix: Optional[str] = None
+        state: Optional[str] = None
     
     async def fetch_member_roster():
         """Fallback roster fetcher - returns empty list."""
@@ -246,7 +250,7 @@ class RosterDatabase:
         
         return self._execute_with_retry(operation)
     
-    def search_calls(self, prefix: str, limit: int = 10) -> List[Tuple[str, int, str]]:
+    def search_calls(self, prefix: str, limit: int = 10) -> List[Tuple[str, int, str, str]]:
         """Search for callsigns starting with the given prefix."""
         if not prefix:
             return []
