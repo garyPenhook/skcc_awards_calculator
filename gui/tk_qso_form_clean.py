@@ -30,11 +30,13 @@ if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
 try:
-    from services.skcc import get_dxcc_country
+    from services.skcc import get_dxcc_country, parse_adif
 except ImportError:
     # Fallback if backend services not available
     def get_dxcc_country(call):
         return None
+    def parse_adif(content):
+        return []
 
 class RosterProgressDialog:
     """Progress dialog for roster updates."""
@@ -330,6 +332,7 @@ class QSOForm(ttk.Frame):
         file_frame = ttk.Frame(parent)
         file_frame.grid(row=r, column=1, sticky="ew", padx=6, pady=4)
         self.adif_var = tk.StringVar()
+        self.adif_var.trace_add('write', self._on_adif_file_change)
         ttk.Entry(file_frame, textvariable=self.adif_var, width=40).pack(side=tk.LEFT, padx=(0, 6), fill="x", expand=True)
         ttk.Button(file_frame, text="Browse", command=self._browse_adif).pack(side=tk.RIGHT)
         r += 1
@@ -472,6 +475,9 @@ class QSOForm(ttk.Frame):
         self.qso_tree.grid(row=0, column=0, sticky="nsew")
         qso_scrollbar.grid(row=0, column=1, sticky="ns")
         
+        # Add initial placeholder message
+        self.qso_tree.insert('', 'end', values=("", "Select ADIF file to view recent QSOs", "", "", ""))
+        
         # Cluster spots section (bottom half of right panel)
         cluster_frame = ttk.LabelFrame(parent, text="SKCC Cluster Spots", padding=10)
         cluster_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
@@ -554,6 +560,8 @@ class QSOForm(ttk.Frame):
         )
         if file_path:
             self.adif_var.set(file_path)
+            # Load and display recent QSOs from the file
+            self._load_recent_qsos(file_path)
 
     def _update_time_display(self):
         try:
@@ -660,6 +668,12 @@ class QSOForm(ttk.Frame):
     def _hide_autocomplete(self):
         """Hide the autocomplete listbox."""
         self.autocomplete_frame.grid_remove()
+
+    def _on_adif_file_change(self, *args):
+        """Handle ADIF file path changes to reload recent QSOs."""
+        file_path = self.adif_var.get().strip()
+        if file_path and Path(file_path).exists():
+            self._load_recent_qsos(file_path)
 
     def _select_autocomplete(self, event=None):
         """Handle selection from autocomplete listbox."""
@@ -786,6 +800,95 @@ class QSOForm(ttk.Frame):
                     
         except Exception as e:
             print(f"Error adding QSO to view: {e}")
+
+    def _load_recent_qsos(self, file_path):
+        """Load and display recent QSOs from the selected ADIF file."""
+        try:
+            # Clear existing QSO tree
+            for item in self.qso_tree.get_children():
+                self.qso_tree.delete(item)
+                
+            # Read ADIF file
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            # Parse ADIF content
+            qsos = parse_adif(content)
+            
+            if not qsos:
+                print(f"No QSOs found in {file_path}")
+                return
+                
+            # Sort QSOs by date/time (most recent first)
+            def qso_datetime_key(qso):
+                try:
+                    if qso.date and qso.time_on:
+                        # Combine date and time
+                        date_str = qso.date  # YYYYMMDD
+                        time_str = qso.time_on.ljust(6, '0')  # Pad time to HHMMSS
+                        datetime_str = f"{date_str}{time_str}"
+                        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S")
+                    elif qso.date:
+                        # Date only
+                        return datetime.strptime(qso.date, "%Y%m%d")
+                    else:
+                        # No date, put at the end
+                        return datetime.min
+                except (ValueError, TypeError):
+                    return datetime.min
+                    
+            sorted_qsos = sorted(qsos, key=qso_datetime_key, reverse=True)
+            
+            # Display the most recent 20 QSOs
+            for qso in sorted_qsos[:20]:
+                try:
+                    # Format time display
+                    if qso.date and qso.time_on:
+                        # Parse date and time
+                        date_obj = datetime.strptime(qso.date, "%Y%m%d")
+                        if len(qso.time_on) >= 4:
+                            time_str = qso.time_on.ljust(6, '0')  # Pad to HHMMSS
+                            hour = int(time_str[:2])
+                            minute = int(time_str[2:4])
+                            time_display = f"{date_obj.strftime('%m/%d')} {hour:02d}:{minute:02d}"
+                        else:
+                            time_display = date_obj.strftime('%m/%d')
+                    elif qso.date:
+                        date_obj = datetime.strptime(qso.date, "%Y%m%d")
+                        time_display = date_obj.strftime('%m/%d')
+                    else:
+                        time_display = ""
+                    
+                    call = qso.call or ""
+                    band = qso.band or ""
+                    skcc = qso.skcc or ""
+                    
+                    # Format key type
+                    key_display = ""
+                    if qso.key_type:
+                        key_lower = qso.key_type.lower()
+                        if 'straight' in key_lower or 'sk' == key_lower:
+                            key_display = "Straight"
+                        elif 'bug' in key_lower or 'semi' in key_lower:
+                            key_display = "Bug"
+                        elif 'side' in key_lower or 'cootie' in key_lower or 'ss' == key_lower:
+                            key_display = "Sideswiper"
+                        else:
+                            key_display = qso.key_type.title()
+                    
+                    # Insert into tree
+                    self.qso_tree.insert('', 'end', values=(time_display, call, band, skcc, key_display))
+                    
+                except Exception as e:
+                    print(f"Error processing QSO {qso.call}: {e}")
+                    continue
+                    
+            print(f"Loaded {min(len(sorted_qsos), 20)} recent QSOs from {file_path}")
+            
+        except FileNotFoundError:
+            print(f"ADIF file not found: {file_path}")
+        except Exception as e:
+            print(f"Error loading QSOs from {file_path}: {e}")
 
     def _quit(self):
         self.winfo_toplevel().destroy()
