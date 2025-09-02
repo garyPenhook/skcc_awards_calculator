@@ -1,0 +1,5 @@
+[tool.black]
+line-length = 100
+target-version = ["py311", "py312", "py313"]
+include = "\.(py|pyi)$"
+exclude = "(\n  /\.git\n| /\.venv\n| /build\n| /dist\n| /__pycache__\n)"
