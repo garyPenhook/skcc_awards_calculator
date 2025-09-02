@@ -18,33 +18,135 @@ def test_rag_chew_awards():
     # Create test QSOs with different durations
     qsos = [
         # Valid rag chew QSOs (30+ minutes after 2013-07-01)
-        QSO(call="W1ABC", band="20M", mode="CW", date="20140101", skcc="1000", time_on="1200", duration_minutes=35),
-        QSO(call="W2DEF", band="40M", mode="CW", date="20140102", skcc="2000", time_on="1300", duration_minutes=45),
-        QSO(call="W3GHI", band="15M", mode="CW", date="20140103", skcc="3000", time_on="1400", duration_minutes=60),
-        QSO(call="W4JKL", band="20M", mode="CW", date="20140104", skcc="4000", time_on="1500", duration_minutes=30),  # Exactly 30 min
-        QSO(call="W5MNO", band="40M", mode="CW", date="20140105", skcc="5000", time_on="1600", duration_minutes=90),
-
+        QSO(
+            call="W1ABC",
+            band="20M",
+            mode="CW",
+            date="20140101",
+            skcc="1000",
+            time_on="1200",
+            duration_minutes=35,
+        ),
+        QSO(
+            call="W2DEF",
+            band="40M",
+            mode="CW",
+            date="20140102",
+            skcc="2000",
+            time_on="1300",
+            duration_minutes=45,
+        ),
+        QSO(
+            call="W3GHI",
+            band="15M",
+            mode="CW",
+            date="20140103",
+            skcc="3000",
+            time_on="1400",
+            duration_minutes=60,
+        ),
+        QSO(
+            call="W4JKL",
+            band="20M",
+            mode="CW",
+            date="20140104",
+            skcc="4000",
+            time_on="1500",
+            duration_minutes=30,
+        ),  # Exactly 30 min
+        QSO(
+            call="W5MNO",
+            band="40M",
+            mode="CW",
+            date="20140105",
+            skcc="5000",
+            time_on="1600",
+            duration_minutes=90,
+        ),
         # Different band
-        QSO(call="W6PQR", band="80M", mode="CW", date="20140201", skcc="6000", time_on="1700", duration_minutes=40),
-        QSO(call="W7STU", band="80M", mode="CW", date="20140202", skcc="7000", time_on="1800", duration_minutes=50),
-
+        QSO(
+            call="W6PQR",
+            band="80M",
+            mode="CW",
+            date="20140201",
+            skcc="6000",
+            time_on="1700",
+            duration_minutes=40,
+        ),
+        QSO(
+            call="W7STU",
+            band="80M",
+            mode="CW",
+            date="20140202",
+            skcc="7000",
+            time_on="1800",
+            duration_minutes=50,
+        ),
         # QSOs too short (less than 30 minutes - should be excluded)
-        QSO(call="W8SHORT", band="20M", mode="CW", date="20140301", skcc="8000", time_on="1900", duration_minutes=25),
-        QSO(call="W9SHORT", band="40M", mode="CW", date="20140302", skcc="9000", time_on="2000", duration_minutes=15),
-
+        QSO(
+            call="W8SHORT",
+            band="20M",
+            mode="CW",
+            date="20140301",
+            skcc="8000",
+            time_on="1900",
+            duration_minutes=25,
+        ),
+        QSO(
+            call="W9SHORT",
+            band="40M",
+            mode="CW",
+            date="20140302",
+            skcc="9000",
+            time_on="2000",
+            duration_minutes=15,
+        ),
         # QSOs before start date (should be excluded)
-        QSO(call="W0OLD", band="20M", mode="CW", date="20130601", skcc="10000", time_on="2100", duration_minutes=60),
-
+        QSO(
+            call="W0OLD",
+            band="20M",
+            mode="CW",
+            date="20130601",
+            skcc="10000",
+            time_on="2100",
+            duration_minutes=60,
+        ),
         # Non-SKCC member (should be excluded)
-        QSO(call="W1NON", band="20M", mode="CW", date="20140401", time_on="2200", duration_minutes=45),
-
+        QSO(
+            call="W1NON",
+            band="20M",
+            mode="CW",
+            date="20140401",
+            time_on="2200",
+            duration_minutes=45,
+        ),
         # QSO without duration (should be excluded)
         QSO(call="K1NODUR", band="20M", mode="CW", date="20140501", skcc="11000"),
-
         # Additional QSOs to build larger totals for testing awards
-        QSO(call="N1AAA", band="20M", mode="CW", date="20140601", skcc="12000", duration_minutes=120),  # 2 hours
-        QSO(call="N2BBB", band="40M", mode="CW", date="20140602", skcc="13000", duration_minutes=180),  # 3 hours
-        QSO(call="N3CCC", band="15M", mode="CW", date="20140603", skcc="14000", duration_minutes=150),  # 2.5 hours
+        QSO(
+            call="N1AAA",
+            band="20M",
+            mode="CW",
+            date="20140601",
+            skcc="12000",
+            duration_minutes=120,
+        ),  # 2 hours
+        QSO(
+            call="N2BBB",
+            band="40M",
+            mode="CW",
+            date="20140602",
+            skcc="13000",
+            duration_minutes=180,
+        ),  # 3 hours
+        QSO(
+            call="N3CCC",
+            band="15M",
+            mode="CW",
+            date="20140603",
+            skcc="14000",
+            duration_minutes=150,
+        ),  # 2.5 hours
     ]
 
     # Create test members
@@ -85,7 +187,9 @@ def test_rag_chew_awards():
     for award in overall_awards[:5]:  # Show first 5 levels
         status = "✓" if award.achieved else "○"
         percentage = (award.current_minutes / award.threshold) * 100
-        print(f"    {status} {award.name}: {award.current_minutes}/{award.threshold} minutes ({percentage:.1f}%) - {award.qso_count} QSOs")
+        print(
+            f"    {status} {award.name}: {award.current_minutes}/{award.threshold} minutes ({percentage:.1f}%) - {award.qso_count} QSOs"
+        )
 
     # Show band endorsements
     band_awards = [a for a in relevant_awards if a.band is not None]
@@ -94,7 +198,10 @@ def test_rag_chew_awards():
         for award in band_awards[:10]:  # Show first 10 band awards
             status = "✓" if award.achieved else "○"
             percentage = (award.current_minutes / award.threshold) * 100
-            print(f"    {status} {award.name} on {award.band}: {award.current_minutes}/{award.threshold} minutes ({percentage:.1f}%)")
+            print(
+                f"    {status} {award.name} on {award.band}: {award.current_minutes}/{award.threshold} minutes ({percentage:.1f}%)"
+            )
+
 
 def test_duration_validation():
     """Test duration requirements and validation."""
@@ -123,7 +230,7 @@ def test_duration_validation():
                 mode=base_qso.mode,
                 date=base_qso.date,
                 skcc=base_qso.skcc,
-                duration_minutes=duration
+                duration_minutes=duration,
             )
         else:
             test_qso = base_qso
@@ -136,7 +243,10 @@ def test_duration_validation():
 
         status = "✓" if has_progress == expected_valid else "✗"
         result_text = "counted" if has_progress else "not counted"
-        print(f"  {status} {description}: {result_text} (expected {'valid' if expected_valid else 'invalid'})")
+        print(
+            f"  {status} {description}: {result_text} (expected {'valid' if expected_valid else 'invalid'})"
+        )
+
 
 if __name__ == "__main__":
     test_duration_validation()

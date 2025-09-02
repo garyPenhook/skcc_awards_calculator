@@ -10,6 +10,7 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - fallback path adjust
     import sys
     from pathlib import Path
+
     parent = Path(__file__).resolve().parents[1]
     if str(parent) not in sys.path:
         sys.path.insert(0, str(parent))
@@ -37,10 +38,13 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(awards.router)
 
+
 @app.get("/", summary="Root")
 async def root() -> dict[str, str]:
     return {"app": settings.app_name, "version": settings.version}
 
+
 if __name__ == "__main__":  # pragma: no cover
     import uvicorn
+
     uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)

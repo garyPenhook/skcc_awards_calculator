@@ -10,11 +10,13 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+
 def main():
     """Main entry point with proper exception handling."""
     try:
         # Import and run the clean QSO form
         from gui.tk_qso_form_clean import main as gui_main
+
         gui_main()
     except ImportError as e:
         print(f"❌ Import Error: {e}")
@@ -27,6 +29,7 @@ def main():
         traceback.print_exc()
         print("\nPlease report this error with the traceback above.")
         sys.exit(1)
+
 
 if __name__ == "__main__":
     main()

@@ -14,6 +14,7 @@ _BANDS = [
     (28.0, 29.7, "10M"),
 ]
 
+
 def freq_to_band(mhz: float) -> Optional[str]:
     for lo, hi, name in _BANDS:
         if lo <= mhz <= hi:

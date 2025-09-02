@@ -4,10 +4,11 @@ from typing import Optional
 from .key_type import KeyType, DISPLAY_LABELS
 from utils.bandplan import freq_to_band
 
+
 @dataclass
 class QSO:
     call: str
-    when: datetime               # Start time - naive or aware; stored as UTC
+    when: datetime  # Start time - naive or aware; stored as UTC
     mode: str = "CW"
     freq_mhz: Optional[float] = None
     band: Optional[str] = None
@@ -37,9 +38,7 @@ class QSO:
         utc = QSO._utc(self.when)
         qso_date = utc.strftime("%Y%m%d")
         time_on = utc.strftime("%H%M%S")
-        band = self.band or (
-            freq_to_band(self.freq_mhz) if self.freq_mhz is not None else None
-        )
+        band = self.band or (freq_to_band(self.freq_mhz) if self.freq_mhz is not None else None)
 
         fields: list[tuple[str, str]] = []
 
@@ -50,13 +49,13 @@ class QSO:
         put("CALL", self.call.upper())
         put("QSO_DATE", qso_date)
         put("TIME_ON", time_on)
-        
+
         # Add TIME_OFF if available (for ragchew award tracking)
         if self.time_off:
             utc_off = QSO._utc(self.time_off)
             time_off = utc_off.strftime("%H%M%S")
             put("TIME_OFF", time_off)
-        
+
         put("MODE", self.mode)
         if self.freq_mhz is not None:
             put("FREQ", f"{self.freq_mhz:.4f}")  # 4 dp is common

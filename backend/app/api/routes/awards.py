@@ -87,8 +87,5 @@ async def check_awards(
         total_cw_qsos=result.total_cw_qsos,
         matched_qsos=result.matched_qsos,
         unmatched_calls=result.unmatched_calls,
-        thresholds_used=[
-            ThresholdModel(name=n, required=r)
-            for n, r in result.thresholds_used
-        ],
+        thresholds_used=[ThresholdModel(name=n, required=r) for n, r in result.thresholds_used],
     )

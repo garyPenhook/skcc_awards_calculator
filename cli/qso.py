@@ -12,6 +12,7 @@ from models.qso import QSO
 from models.key_type import normalize
 from adif_io.adif_writer import append_record
 
+
 def main(argv=None):
     ap = argparse.ArgumentParser("skcc qso — append a QSO to ADIF")
     ap.add_argument("--adif", required=True, help="ADIF file to create/append")
@@ -29,16 +30,28 @@ def main(argv=None):
     ap.add_argument("--key", required=True, help="straight|bug|sideswiper")
 
     args = ap.parse_args(argv)
-    when = (datetime.strptime(args.when_utc, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
-            if args.when_utc else datetime.now(timezone.utc))
+    when = (
+        datetime.strptime(args.when_utc, "%Y%m%d%H%M%S").replace(tzinfo=timezone.utc)
+        if args.when_utc
+        else datetime.now(timezone.utc)
+    )
 
     q = QSO(
-        call=args.call, when=when, freq_mhz=args.freq, band=args.band,
-        rst_s=args.rst_s, rst_r=args.rst_r, station_callsign=args.station_callsign,
-        operator=args.operator, tx_pwr_w=args.tx_pwr_w, their_skcc=args.their_skcc,
-        my_skcc=args.my_skcc, my_key=normalize(args.key),
+        call=args.call,
+        when=when,
+        freq_mhz=args.freq,
+        band=args.band,
+        rst_s=args.rst_s,
+        rst_r=args.rst_r,
+        station_callsign=args.station_callsign,
+        operator=args.operator,
+        tx_pwr_w=args.tx_pwr_w,
+        their_skcc=args.their_skcc,
+        my_skcc=args.my_skcc,
+        my_key=normalize(args.key),
     )
     append_record(args.adif, q.to_adif_fields())
+
 
 if __name__ == "__main__":
     main()

@@ -6,7 +6,9 @@ def test_centurion_rule_filters() -> None:
         skcc.Member(call="K1ABC", number=1, join_date="20240105"),  # join after first QSO
         skcc.Member(call="K3DEF", number=2, join_date="20240101"),
         skcc.Member(call="W1XYZ", number=3, join_date="20230101"),
-        skcc.Member(call="K9SKC", number=4, join_date="20200101"),  # disallowed special after cutoff
+        skcc.Member(
+            call="K9SKC", number=4, join_date="20200101"
+        ),  # disallowed special after cutoff
     ]
     qsos = [
         skcc.QSO(call="K1ABC", band="40M", mode="CW", date="20240101"),  # before join -> ignored
@@ -21,4 +23,3 @@ def test_centurion_rule_filters() -> None:
     # Ensure disallowed calls appear in unmatched if present
     assert "K9SKC" not in result.unmatched_calls  # excluded before unmatched tracking
     assert all(c not in result.unmatched_calls for c in ["K1ABC", "K3DEF", "W1XYZ"])  # matched
-

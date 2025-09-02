@@ -936,8 +936,7 @@ async def fetch_member_roster(
     if last_exception and not any(err.startswith("parse-") for _, err in tried):
         # Provide aggregated context in exception chain
         raise RuntimeError(
-            "All roster URL attempts failed: "
-            + ", ".join(f"{u} ({err})" for u, err in tried)
+            "All roster URL attempts failed: " + ", ".join(f"{u} ({err})" for u, err in tried)
         ) from last_exception
     return []
 
@@ -967,9 +966,7 @@ def _parse_roster_text(text: str) -> List[Member]:
                 continue
             call_candidate = None
             for c in cells[1:4]:
-                if re.fullmatch(r"[A-Z0-9/]{3,}", c.upper()) and any(
-                    ch.isdigit() for ch in c
-                ):
+                if re.fullmatch(r"[A-Z0-9/]{3,}", c.upper()) and any(ch.isdigit() for ch in c):
                     call_candidate = c.upper()
                     break
             if call_candidate:
@@ -1416,9 +1413,9 @@ def calculate_canadian_maple_awards(
             except (ValueError, TypeError):
                 pass
         # Also check for QRP indicator in comment or mode
-        if (
-            hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()
-        ) or (qso.mode and "QRP" in qso.mode.upper()):
+        if (hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()) or (
+            qso.mode and "QRP" in qso.mode.upper()
+        ):
             is_qrp = True
 
         if is_qrp:
@@ -1469,9 +1466,7 @@ def calculate_canadian_maple_awards(
 
     # Red Maple Award (10 provinces on each of all 9 bands)
     bands_with_10_provinces = sum(
-        1
-        for band in CANADIAN_MAPLE_BANDS
-        if len(provinces_by_band.get(band, set())) >= 10
+        1 for band in CANADIAN_MAPLE_BANDS if len(provinces_by_band.get(band, set())) >= 10
     )
     red_achieved = bands_with_10_provinces >= 9
     awards.append(
@@ -1496,9 +1491,7 @@ def calculate_canadian_maple_awards(
 
     # Gold Maple Award (10 provinces on each of all 9 bands, QRP only)
     qrp_bands_with_10_provinces = sum(
-        1
-        for band in CANADIAN_MAPLE_BANDS
-        if len(qrp_provinces_by_band.get(band, set())) >= 10
+        1 for band in CANADIAN_MAPLE_BANDS if len(qrp_provinces_by_band.get(band, set())) >= 10
     )
     gold_achieved = qrp_bands_with_10_provinces >= 9
     awards.append(
@@ -1615,9 +1608,9 @@ def calculate_dx_awards(
             except (ValueError, TypeError):
                 pass
         # Also check for QRP indicator in comment or mode
-        if (
-            hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()
-        ) or (qso.mode and "QRP" in qso.mode.upper()):
+        if (hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()) or (
+            qso.mode and "QRP" in qso.mode.upper()
+        ):
             is_qrp = True
 
         # For DXQ: track individual QSOs (country, member number)
@@ -1765,9 +1758,7 @@ def extract_prefix(call: str) -> str | None:
     return prefix if prefix else None
 
 
-def calculate_pfx_awards(
-    qsos: Sequence[QSO], members: Sequence[Member]
-) -> List[PFXAward]:
+def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[PFXAward]:
     """
     Calculate SKCC PFX Award progress based on unique prefixes and SKCC number sums.
 
@@ -1869,9 +1860,7 @@ def calculate_pfx_awards(
             overall_achieved = total_score >= threshold
             band_achieved = band_score >= threshold
 
-            if (
-                overall_achieved or band_achieved
-            ):  # Show if either overall or band is achieved
+            if overall_achieved or band_achieved:  # Show if either overall or band is achieved
                 awards.append(
                     PFXAward(
                         name=f"PFX Px{level}",
@@ -1950,9 +1939,7 @@ def calculate_triple_key_awards(
             if isinstance(qso.date, date) and isinstance(member.join_date, date):
                 if qso.date < member.join_date:
                     continue
-            elif str(qso.date).replace("-", "") < str(member.join_date).replace(
-                "-", ""
-            ):
+            elif str(qso.date).replace("-", "") < str(member.join_date).replace("-", ""):
                 continue
 
         # Extract key type from various possible fields
@@ -2042,9 +2029,7 @@ def calculate_triple_key_awards(
             threshold=300,
             current_count=total_unique,
             achieved=all_achieved,
-            members_worked=sorted(
-                list(straight_key_members | bug_members | sideswiper_members)
-            ),
+            members_worked=sorted(list(straight_key_members | bug_members | sideswiper_members)),
             percentage=(total_unique / 300.0) * 100,
         )
     )
@@ -2052,9 +2037,7 @@ def calculate_triple_key_awards(
     return awards
 
 
-def calculate_rag_chew_awards(
-    qsos: Sequence[QSO], members: Sequence[Member]
-) -> List[RagChewAward]:
+def calculate_rag_chew_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[RagChewAward]:
     """
     Calculate SKCC Rag Chew Award progress.
 
@@ -2155,9 +2138,7 @@ def calculate_rag_chew_awards(
     # Extended levels beyond RC10 (RC15, RC20, RC25, etc.)
     for level in [15, 20, 25, 30, 35, 40, 45, 50]:
         threshold = level * 300
-        if (
-            total_minutes_overall >= threshold // 2
-        ):  # Only show if we're at least halfway there
+        if total_minutes_overall >= threshold // 2:  # Only show if we're at least halfway there
             achieved = total_minutes_overall >= threshold
             awards.append(
                 RagChewAward(
@@ -2181,9 +2162,7 @@ def calculate_rag_chew_awards(
             for level in range(1, 11):  # Band endorsements RC1-RC10
                 threshold = level * 300
                 achieved = band_minutes >= threshold
-                if (
-                    band_minutes >= threshold // 2 or achieved
-                ):  # Show if halfway there or achieved
+                if band_minutes >= threshold // 2 or achieved:  # Show if halfway there or achieved
                     awards.append(
                         RagChewAward(
                             name=f"Rag Chew RC{level}",
@@ -2199,9 +2178,7 @@ def calculate_rag_chew_awards(
     return awards
 
 
-def calculate_wac_awards(
-    qsos: Sequence[QSO], members: Sequence[Member]
-) -> List[WACAward]:
+def calculate_wac_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[WACAward]:
     """
     Calculate SKCC Worked All Continents (WAC) Award progress.
 
@@ -2587,9 +2564,7 @@ def calculate_awards(
     progresses: List[AwardProgress] = []
 
     # Centurion: All unique SKCC members count. Use dynamic threshold if provided.
-    cent_required = next(
-        (req for name, req in use_thresholds if name == "Centurion"), 100
-    )
+    cent_required = next((req for name, req in use_thresholds if name == "Centurion"), 100)
     centurion_current = unique_count
     centurion_achieved = centurion_current >= cent_required
     progresses.append(
@@ -2668,21 +2643,16 @@ def calculate_awards(
                         current=tribune_current,
                         achieved=achieved,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S "
-                            f"members total"
+                            f"Tribune x{n} - Contact {required} unique C/T/S " f"members total"
                         ),
                     )
                 )
 
             # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
             # Tx15=750, Tx20=1000, Tx25=1250, etc.
-            for n in range(
-                15, 51, 5
-            ):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
+            for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
                 required = n * 50
-                if (
-                    tribune_current >= required * 0.8
-                ):  # Only show if within 80% to avoid clutter
+                if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
                     achieved = tribune_current >= required
                     tribune_endorsements.append(
                         AwardProgress(
@@ -2691,8 +2661,7 @@ def calculate_awards(
                             current=tribune_current,
                             achieved=achieved,
                             description=(
-                                f"Tribune x{n} - Contact {required} unique C/T/S "
-                                f"members total"
+                                f"Tribune x{n} - Contact {required} unique C/T/S " f"members total"
                             ),
                         )
                     )
@@ -2767,9 +2736,7 @@ def calculate_awards(
                     tribune_senator_members.add(nid)
 
         tribune_current = len(centurion_plus_members)
-        tribune_achieved = (
-            tribune_current >= 50
-        )  # Tribune requires 50 contacts with C/T/S
+        tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts with C/T/S
 
         # Add all Tribune endorsement levels (legacy mode)
         # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
@@ -2793,9 +2760,7 @@ def calculate_awards(
         # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
         for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
             required = n * 50
-            if (
-                tribune_current >= required * 0.8
-            ):  # Only show if within 80% to avoid clutter
+            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
                 achieved = tribune_current >= required
                 tribune_endorsements.append(
                     AwardProgress(
@@ -2842,8 +2807,7 @@ def calculate_awards(
                 current=tribune_current,
                 achieved=tribune_achieved,
                 description=(
-                    "Contact 50 unique Centurions/Tribunes/Senators (legacy: "
-                    "current status)"
+                    "Contact 50 unique Centurions/Tribunes/Senators (legacy: " "current status)"
                 ),
             )
         )

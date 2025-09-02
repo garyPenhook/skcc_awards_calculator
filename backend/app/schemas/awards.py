@@ -1,11 +1,13 @@
 from pydantic import BaseModel, Field
 from typing import List
 
+
 class AwardProgressModel(BaseModel):
     name: str = Field(..., description="Award name")
     required: int = Field(..., description="Contacts required to achieve")
     current: int = Field(..., description="Current unique SKCC member contacts")
     achieved: bool = Field(..., description="Whether requirement met")
+
 
 class AwardEndorsementModel(BaseModel):
     award: str = Field(..., description="Base award name")
@@ -15,9 +17,11 @@ class AwardEndorsementModel(BaseModel):
     current: int
     achieved: bool
 
+
 class ThresholdModel(BaseModel):
     name: str
     required: int
+
 
 class AwardCheckResultModel(BaseModel):
     unique_members_worked: int

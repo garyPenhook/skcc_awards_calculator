@@ -16,25 +16,26 @@ import httpx
 from bs4 import BeautifulSoup
 import re
 
+
 async def debug_html_parsing():
     print("=== Debugging HTML Roster Parsing ===")
-    
+
     # Fetch the raw HTML
     async with httpx.AsyncClient(timeout=30.0) as client:
         response = await client.get(DEFAULT_ROSTER_URL)
         html_content = response.text
-    
+
     print(f"HTML content length: {len(html_content)} characters")
-    
+
     # Parse with BeautifulSoup
     soup = BeautifulSoup(html_content, "html.parser")
     rows = soup.find_all("tr")
     print(f"Found {len(rows)} table rows")
-    
+
     # Look for our test numbers
     test_numbers = [660, 1395, 13613, 24472, 25995]
     found_rows = []
-    
+
     for i, tr in enumerate(rows):
         cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
         if len(cells) >= 2:
@@ -44,11 +45,11 @@ async def debug_html_parsing():
                     found_rows.append((i, number, cells))
             except ValueError:
                 continue
-    
+
     print(f"\nFound {len(found_rows)} rows with our test numbers:")
     for row_idx, number, cells in found_rows:
         print(f"  Row {row_idx}: {number} -> {cells[:5]}")
-    
+
     # Show some sample rows to understand the structure
     print(f"\nSample rows (first 10 data rows):")
     data_rows = 0
@@ -62,12 +63,12 @@ async def debug_html_parsing():
                     print(f"  Row {i}: {cells[:5]}")
             except ValueError:
                 continue
-    
+
     # Test the parsing function directly
     print(f"\n=== Testing _parse_roster_text function ===")
     members = _parse_roster_text(html_content)
     print(f"Parsed {len(members)} members")
-    
+
     # Check for our test numbers
     number_to_member = {m.number: m for m in members}
     print(f"\nChecking for test numbers:")
@@ -77,7 +78,7 @@ async def debug_html_parsing():
             print(f"  {num}: FOUND - {member.call}")
         else:
             print(f"  {num}: NOT FOUND")
-    
+
     # Check ranges around our test numbers to see if there are gaps
     print(f"\nChecking number ranges around test numbers:")
     for num in test_numbers:
@@ -88,30 +89,31 @@ async def debug_html_parsing():
                 marker = "***" if check_num == num else "   "
                 member = number_to_member[check_num]
                 print(f"  {marker} {check_num}: {member.call}")
-    
+
     # Count total gaps in number sequence
     all_numbers = sorted(number_to_member.keys())
     gaps = []
     for i in range(len(all_numbers) - 1):
-        if all_numbers[i+1] - all_numbers[i] > 1:
+        if all_numbers[i + 1] - all_numbers[i] > 1:
             gap_start = all_numbers[i] + 1
-            gap_end = all_numbers[i+1] - 1
+            gap_end = all_numbers[i + 1] - 1
             gaps.append((gap_start, gap_end))
-    
+
     print(f"\nFound {len(gaps)} gaps in member numbering")
     print(f"Total numbers that should exist (1 to {max(all_numbers)}): {max(all_numbers)}")
     print(f"Actual members in roster: {len(all_numbers)}")
     print(f"Missing member count: {max(all_numbers) - len(all_numbers)}")
-    
+
     # Show some gaps
     print(f"\nSample gaps (first 10):")
     for i, (start, end) in enumerate(gaps[:10]):
         print(f"  Gap {i+1}: {start}-{end} ({end-start+1} numbers)")
-    
+
     # Show first few parsed members
     print(f"\nFirst 10 parsed members:")
     for i, member in enumerate(members[:10]):
         print(f"  {member.number}: {member.call}")
+
 
 if __name__ == "__main__":
     asyncio.run(debug_html_parsing())

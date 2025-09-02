@@ -13,4 +13,3 @@ def test_call_normalization_aliases() -> None:
     assert result.unique_members_worked == 1
     assert result.matched_qsos == 4
     assert result.unmatched_calls == []
-
