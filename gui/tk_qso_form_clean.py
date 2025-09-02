@@ -390,6 +390,14 @@ class QSOForm(ttk.Frame):
         ttk.Entry(parent, textvariable=self.their_skcc_var, width=12).grid(row=r, column=1, sticky="w", padx=6, pady=4)
         r += 1
 
+        # Previous QSO indicator
+        ttk.Label(parent, text="Previous QSO:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
+        self.previous_qso_var = tk.StringVar()
+        self.previous_qso_label = ttk.Label(parent, textvariable=self.previous_qso_var, 
+                                          foreground="orange", font=("Arial", 9))
+        self.previous_qso_label.grid(row=r, column=1, sticky="w", padx=6, pady=4)
+        r += 1
+
         # Country (auto-filled from callsign)
         ttk.Label(parent, text="Country").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.country_var = tk.StringVar()
@@ -610,6 +618,12 @@ class QSOForm(ttk.Frame):
                     self.country_var.set("")
             except Exception as e:
                 print(f"Country lookup error: {e}")
+            
+            # Check for previous QSOs with this callsign
+            self._check_previous_qso(callsign)
+        else:
+            # Clear previous QSO info when callsign is cleared
+            self.previous_qso_var.set("")
         
         if len(callsign) >= 2:  # Start suggesting after 2 characters
             try:
@@ -889,6 +903,77 @@ class QSOForm(ttk.Frame):
             print(f"ADIF file not found: {file_path}")
         except Exception as e:
             print(f"Error loading QSOs from {file_path}: {e}")
+
+    def _check_previous_qso(self, callsign):
+        """Check if this callsign has been worked before in the current ADIF file."""
+        file_path = self.adif_var.get().strip()
+        if not file_path or not Path(file_path).exists():
+            self.previous_qso_var.set("")
+            return
+            
+        try:
+            # Read and parse ADIF file
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read()
+                
+            qsos = parse_adif(content)
+            
+            # Look for previous QSOs with this callsign
+            previous_qsos = []
+            for qso in qsos:
+                if qso.call and qso.call.upper() == callsign.upper():
+                    previous_qsos.append(qso)
+            
+            if not previous_qsos:
+                self.previous_qso_var.set("New contact")
+                self.previous_qso_label.config(foreground="green")
+                return
+                
+            # Sort by date to find the most recent previous QSO
+            def qso_datetime_key(qso):
+                try:
+                    if qso.date and qso.time_on:
+                        date_str = qso.date
+                        time_str = qso.time_on.ljust(6, '0')
+                        datetime_str = f"{date_str}{time_str}"
+                        return datetime.strptime(datetime_str, "%Y%m%d%H%M%S")
+                    elif qso.date:
+                        return datetime.strptime(qso.date, "%Y%m%d")
+                    else:
+                        return datetime.min
+                except (ValueError, TypeError):
+                    return datetime.min
+                    
+            sorted_previous = sorted(previous_qsos, key=qso_datetime_key, reverse=True)
+            most_recent = sorted_previous[0]
+            
+            # Format the previous QSO information
+            prev_info = f"Worked {len(previous_qsos)} time{'s' if len(previous_qsos) > 1 else ''}"
+            
+            if most_recent.date:
+                try:
+                    date_obj = datetime.strptime(most_recent.date, "%Y%m%d")
+                    prev_info += f" | Last: {date_obj.strftime('%m/%d/%Y')}"
+                except ValueError:
+                    prev_info += f" | Last: {most_recent.date}"
+            
+            if most_recent.skcc:
+                prev_info += f" | SKCC: {most_recent.skcc}"
+            
+            if most_recent.band:
+                prev_info += f" | {most_recent.band}"
+                
+            self.previous_qso_var.set(prev_info)
+            
+            # Color code based on number of previous contacts
+            if len(previous_qsos) == 1:
+                self.previous_qso_label.config(foreground="orange")  # Duplicate
+            else:
+                self.previous_qso_label.config(foreground="red")     # Multiple contacts
+                
+        except Exception as e:
+            print(f"Error checking previous QSOs for {callsign}: {e}")
+            self.previous_qso_var.set("")
 
     def _quit(self):
         self.winfo_toplevel().destroy()

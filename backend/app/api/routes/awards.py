@@ -1,16 +1,43 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException
+"""Awards API routes for checking SKCC awards from uploaded ADIF logs."""
+
 from typing import List
-from app.services.skcc import fetch_member_roster, parse_adif_files, calculate_awards, fetch_award_thresholds
-from app.schemas.awards import AwardCheckResultModel, AwardProgressModel, AwardEndorsementModel, ThresholdModel
+
+from fastapi import APIRouter, File, HTTPException, UploadFile
+
+from ...services.skcc import (
+    calculate_awards,
+    fetch_award_thresholds,
+    fetch_member_roster,
+    parse_adif_files,
+)
+from ...schemas.awards import (
+    AwardCheckResultModel,
+    AwardEndorsementModel,
+    AwardProgressModel,
+    ThresholdModel,
+)
 
 router = APIRouter(prefix="/awards", tags=["awards"])
 
-@router.post("/check", response_model=AwardCheckResultModel, summary="Check SKCC awards from ADIF uploads")
+
+@router.post(
+    "/check",
+    response_model=AwardCheckResultModel,
+    summary="Check SKCC awards from ADIF uploads",
+)
 async def check_awards(
     files: List[UploadFile] = File(...),
     enforce_key_type: bool = False,
     treat_missing_key_as_valid: bool = True,
 ) -> AwardCheckResultModel:
+    """Parse uploaded ADIF files and return calculated award progress.
+
+    Args:
+        files: One or more ADIF files uploaded via multipart/form-data.
+        enforce_key_type: If True, enforce SK/BUG/COOTIE key-type rules.
+        treat_missing_key_as_valid: When enforcing, whether a missing key type
+            is allowed.
+    """
     if not files:
         raise HTTPException(status_code=400, detail="No ADIF files uploaded")
     contents: List[str] = []
@@ -19,7 +46,9 @@ async def check_awards(
         try:
             text = raw.decode("utf-8", errors="ignore")
         except Exception as e:  # pragma: no cover (defensive)
-            raise HTTPException(status_code=400, detail=f"Could not decode {f.filename}: {e}")
+            raise HTTPException(
+                status_code=400, detail=f"Could not decode {f.filename}: {e}"
+            ) from e
         contents.append(text)
     qsos = parse_adif_files(contents)
     members = await fetch_member_roster()
@@ -29,7 +58,6 @@ async def check_awards(
         members,
         thresholds,
         enable_endorsements=True,
-        cw_only=True,
         enforce_key_type=enforce_key_type,
         treat_missing_key_as_valid=treat_missing_key_as_valid,
     )
@@ -59,5 +87,8 @@ async def check_awards(
         total_cw_qsos=result.total_cw_qsos,
         matched_qsos=result.matched_qsos,
         unmatched_calls=result.unmatched_calls,
-        thresholds_used=[ThresholdModel(name=n, required=r) for n, r in result.thresholds_used],
+        thresholds_used=[
+            ThresholdModel(name=n, required=r)
+            for n, r in result.thresholds_used
+        ],
     )

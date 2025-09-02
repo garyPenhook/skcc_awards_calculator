@@ -1,4 +1,4 @@
-from app.services.skcc import parse_adif, QSO
+from app.services.skcc import parse_adif
 
 
 def test_parse_single_record() -> None:

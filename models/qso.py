@@ -37,9 +37,12 @@ class QSO:
         utc = QSO._utc(self.when)
         qso_date = utc.strftime("%Y%m%d")
         time_on = utc.strftime("%H%M%S")
-        band = self.band or (freq_to_band(self.freq_mhz) if self.freq_mhz is not None else None)
+        band = self.band or (
+            freq_to_band(self.freq_mhz) if self.freq_mhz is not None else None
+        )
 
         fields: list[tuple[str, str]] = []
+
         def put(tag: str, val: Optional[str]):
             if val not in (None, ""):
                 fields.append((tag, str(val)))
@@ -70,6 +73,8 @@ class QSO:
         if self.their_skcc:
             put("SIG", "SKCC")
             put("SIG_INFO", self.their_skcc)
+            # Also write commonly-used custom SKCC tag for better compatibility
+            put("SKCC", self.their_skcc)
         if self.my_skcc:
             put("MY_SIG", "SKCC")
             put("MY_SIG_INFO", self.my_skcc)
@@ -81,6 +86,55 @@ class QSO:
         put("COUNTRY", self.country)
         put("STATE", self.state)
 
-        # App-scoped mirror for robust parsing
+        # App-scoped mirrors for robust parsing in downstream tools
+        # Canonical key tokens expected by backend: STRAIGHT, BUG, SIDESWIPER
+        key_canonical = {
+            "straight": "STRAIGHT",
+            "bug": "BUG",
+            "sideswiper": "SIDESWIPER",
+        }.get(self.my_key.value.lower(), self.my_key.value.upper())
+        put("APP_SKCCLOGGER_KEYTYPE", key_canonical)
         put("APP_SKCCAC_KEY", self.my_key.value)
+
+        # Auto-generate a helpful COMMENT with SKCC and operating details
+        comment_parts: list[str] = []
+        if self.their_skcc:
+            # Parser looks for the pattern "SKCC: <number>" in comments
+            comment_parts.append(f"SKCC: {self.their_skcc}")
+        # Include key type with friendly label and canonical token for search
+        if self.my_key:
+            label = DISPLAY_LABELS[self.my_key]
+            if key_canonical and key_canonical not in label.upper():
+                comment_parts.append(f"Key: {label} ({key_canonical})")
+            else:
+                comment_parts.append(f"Key: {label}")
+        if band:
+            comment_parts.append(f"Band: {band}")
+        elif self.freq_mhz is not None:
+            comment_parts.append(f"Freq: {self.freq_mhz:.4f} MHz")
+        if self.rst_s or self.rst_r:
+            sent = self.rst_s or ""
+            rcvd = self.rst_r or ""
+            if sent or rcvd:
+                comment_parts.append(f"RST {sent}/{rcvd}")
+        if self.tx_pwr_w is not None:
+            pwr_text = f"PWR {self.tx_pwr_w:g}W"
+            if self.tx_pwr_w <= 5:
+                pwr_text += " QRP"  # Helps QRP detection
+            comment_parts.append(pwr_text)
+        if self.state:
+            comment_parts.append(f"State: {self.state}")
+        if self.country:
+            comment_parts.append(f"DXCC: {self.country}")
+        # Include duration if end time provided
+        if self.time_off:
+            dur_sec = int((QSO._utc(self.time_off) - utc).total_seconds())
+            if dur_sec >= 0:
+                mins, secs = divmod(dur_sec, 60)
+                if mins or secs:
+                    comment_parts.append(f"Dur: {mins}m{secs:02d}s")
+        if comment_parts:
+            # Ensure ASCII-safe content (writer will enforce ASCII)
+            comment = " | ".join(comment_parts)
+            put("COMMENT", comment)
         return fields

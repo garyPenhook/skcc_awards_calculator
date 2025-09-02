@@ -1,38 +1,47 @@
-"""Utilities for fetching SKCC roster / awards metadata and parsing ADIF logs.
+"""Utilities for SKCC roster/awards and ADIF parsing.
 
-Network fetch functions are thin wrappers around httpx and intentionally simple so they
-can be monkeypatched during tests. Award logic here is deliberately lightweight and
-meant as a foundation; full SKCC award validation has more nuances (multi-band, QSL,
-log validation, etc.).
+Network fetch functions are thin wrappers around httpx and are intentionally
+simple so they can be monkeypatched during tests. Award logic here is kept
+lightweight and intended as a foundation. Full SKCC validation has more
+nuances (multi-band, QSL, log validation, etc.).
 """
+
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import List, Dict, Any, Sequence, Tuple, Set
 import re
 import httpx
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-# Public roster URL(s). These may change; keep configurable by caller if needed.
+# Public roster URLs may change; keep configurable by caller.
 DEFAULT_ROSTER_URL = "https://www.skccgroup.com/membership_data/membership_roster.php"
-# Additional fallback candidates (guesses / historical and previous primary variants)
+# Additional fallback candidates (guesses / historical and previous variants)
 FALLBACK_ROSTER_URLS = [
-    "https://www.skccgroup.com/membership_data/membership_listing.php",  # previous primary
-    "https://www.skccgroup.com/membership_data/membership-listing.php",  # hyphen variant
-    "https://www.skccgroup.com/membership_data/",  # directory listing (if allowed)
+    # previous primary
+    "https://www.skccgroup.com/membership_data/membership_listing.php",
+    # hyphen variant
+    "https://www.skccgroup.com/membership_data/membership-listing.php",
+    # directory listing (if allowed)
+    "https://www.skccgroup.com/membership_data/",
 ]
 # Awards landing page (used for heuristic threshold parsing)
 DEFAULT_AWARDS_URL = "https://www.skccgroup.com/awards/"
 
-# Award thresholds - NOTE: Tribune/Senator endorsements are calculated separately
+# Award thresholds (Tribune/Senator endorsements calculated separately)
 # Tribune Endorsement Rules:
-# - TxN requires N times 50 QSOs total (cumulative: Tx2=100, Tx3=150, ..., Tx10=500)
-# - Higher endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
+# - TxN requires N times 50 QSOs total
+#   (cumulative: Tx2=100, Tx3=150, ..., Tx10=500)
+# - Higher endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc.
+#   (increments of 250)
 # - Both parties must be Centurions at time of QSO for Tribune+ awards
-# - Only QSOs with Centurions/Tribunes/Senators (C/T/S suffix) count for Tribune
+# - Only QSOs with Centurions/Tribunes/Senators (C/T/S) count for Tribune
 # Senator Endorsement Rules:
-# - Prerequisites: Tribune x8 (400 C/T/S contacts) PLUS 200 separate T/S contacts
-# - Senator contacts are INDEPENDENT of Tribune x8 contacts (separate count)  
-# - SxN requires N times 200 T/S contacts total (cumulative: Sx2=400, Sx3=600, ..., Sx10=2000)
+# - Prerequisites: Tribune x8 (400 C/T/S contacts)
+#   PLUS 200 separate T/S contacts
+# - Senator contacts are INDEPENDENT of Tribune x8 contacts (separate count)
+# - SxN requires N×200 T/S contacts total
+#   (cumulative: Sx2=400, Sx3=600, ..., Sx10=2000)
 # - Prerequisite: Must first achieve Tribune x8 (400 C/T/S contacts)
 # - Only QSOs with Tribunes/Senators (T/S suffix) count for Senator
 # - Both parties must be Centurions at time of QSO
@@ -42,16 +51,20 @@ AWARD_THRESHOLDS: List[Tuple[str, int]] = [
     ("Senator", 1000),
 ]
 
+
 @dataclass(frozen=True)
 class Member:
     call: str
     number: int
-    # Optional SKCC join date (YYYYMMDD). If provided, used to validate QSO date per rules.
+    # Optional SKCC join date (YYYYMMDD). If provided, used to validate
+    # QSO date per rules.
     join_date: str | None = None
-    # SKCC achievement suffix: S=Senator(1000+), T=Tribune(50+), C=Centurion(100+)
+    # SKCC achievement suffix:
+    #   S=Senator(1000+), T=Tribune(50+), C=Centurion(100+)
     suffix: str | None = None
     # State/Province from SKCC roster (e.g., "CA", "ON", "NC")
     state: str | None = None
+
 
 @dataclass(frozen=True)
 class QSO:
@@ -61,10 +74,13 @@ class QSO:
     date: str | None  # YYYYMMDD
     skcc: str | None = None  # Raw SKCC field (e.g., 14947C, 660S)
     time_on: str | None = None  # HHMMSS if provided
-    key_type: str | None = None  # Raw key type descriptor if available (e.g., STRAIGHT, BUG, COOTIE)
+    # Raw key type descriptor if available (e.g., STRAIGHT, BUG, COOTIE)
+    key_type: str | None = None
     tx_pwr: str | None = None  # Transmitter power
     comment: str | None = None  # QSO comment
-    duration_minutes: int | None = None  # QSO duration in minutes for rag chew award
+    # QSO duration in minutes for rag chew award
+    duration_minutes: int | None = None
+
 
 @dataclass
 class AwardProgress:
@@ -74,12 +90,14 @@ class AwardProgress:
     achieved: bool
     description: str = ""
 
+
 @dataclass
 class CanadianMapleAward:
     name: str
     level: str  # "Yellow", "Orange", "Red", "Gold"
     required_provinces: int
-    required_bands: int | None  # None for Yellow (any mix), specific number for others
+    # None for Yellow (any mix), specific number for others
+    required_bands: int | None
     band: str | None  # Specific band for Orange awards, None for others
     qrp_required: bool
     current_provinces: int
@@ -88,16 +106,18 @@ class CanadianMapleAward:
     provinces_worked: List[str]
     bands_worked: List[str]
 
+
 @dataclass
 class DXAward:
     name: str
     award_type: str  # "DXQ" (QSO-based) or "DXC" (Country-based)
-    threshold: int   # 10, 25, 50, etc.
+    threshold: int  # 10, 25, 50, etc.
     current_count: int
     achieved: bool
     countries_worked: List[str]  # List of DXCC entities worked
     qrp_qualified: bool  # True if all QSOs were QRP
     start_date: str  # "20090614" for DXQ, "20091219" for DXC
+
 
 @dataclass
 class PFXAward:
@@ -110,6 +130,7 @@ class PFXAward:
     prefixes_worked: List[str]  # List of unique prefixes
     band: str | None  # Specific band for endorsements, None for overall award
 
+
 @dataclass
 class TripleKeyAward:
     name: str
@@ -119,6 +140,7 @@ class TripleKeyAward:
     achieved: bool
     members_worked: List[str]  # List of unique member calls
     percentage: float  # Progress percentage
+
 
 @dataclass
 class RagChewAward:
@@ -130,6 +152,7 @@ class RagChewAward:
     qso_count: int  # Number of qualifying rag chew QSOs
     band: str | None  # Specific band for endorsements, None for overall award
 
+
 @dataclass
 class WACAward:
     name: str
@@ -140,6 +163,7 @@ class WACAward:
     continents_worked: List[str]  # List of continents worked
     qrp_qualified: bool  # True if all QSOs were QRP
     band: str | None  # Specific band for endorsements, None for overall award
+
 
 @dataclass
 class AwardCheckResult:
@@ -156,92 +180,180 @@ class AwardCheckResult:
     matched_qsos: int
     unmatched_calls: List[str]
     thresholds_used: List[Tuple[str, int]]
-    total_cw_qsos: int  # Total count of QSOs (SKCC is exclusively CW/Morse code)
+    # Total count of QSOs (SKCC is exclusively CW/Morse code)
+    total_cw_qsos: int
+
 
 @dataclass
 class AwardEndorsement:
-    award: str          # Base award name (e.g., Centurion)
-    category: str       # 'band' (mode not applicable - SKCC is CW-only)
-    value: str          # e.g. '40M', '20M' (band endorsements)
-    required: int       # Threshold required (same as base award requirement)
-    current: int        # Unique SKCC members worked on this band
+    award: str  # Base award name (e.g., Centurion)
+    category: str  # 'band' (mode not applicable - SKCC is CW-only)
+    value: str  # e.g. '40M', '20M' (band endorsements)
+    required: int  # Threshold required (same as base award requirement)
+    current: int  # Unique SKCC members worked on this band
     achieved: bool
 
+
 # Canadian Maple Award configuration
+
 CANADIAN_PROVINCES_TERRITORIES = {
     # Provinces
-    "NS": "Nova Scotia",           # VA1/VE1
-    "QC": "Quebec",               # VA2/VE2  
-    "ON": "Ontario",              # VA3/VE3
-    "MB": "Manitoba",             # VA4/VE4
-    "SK": "Saskatchewan",         # VA5/VE5
-    "AB": "Alberta",              # VA6/VE6
-    "BC": "British Columbia",     # VA7/VE7
-    "NB": "New Brunswick",        # VE9
-    "NL": "Newfoundland",         # VO1
-    "NL_LAB": "Labrador",         # VO2
+    "NS": "Nova Scotia",  # VA1/VE1
+    "QC": "Quebec",  # VA2/VE2
+    "ON": "Ontario",  # VA3/VE3
+    "MB": "Manitoba",  # VA4/VE4
+    "SK": "Saskatchewan",  # VA5/VE5
+    "AB": "Alberta",  # VA6/VE6
+    "BC": "British Columbia",  # VA7/VE7
+    "NB": "New Brunswick",  # VE9
+    "NL": "Newfoundland",  # VO1
+    "NL_LAB": "Labrador",  # VO2
     # Territories (valid after January 2014)
-    "NT": "Northwest Territories", # VE8
-    "NU": "Nunavut",              # VY0
-    "YT": "Yukon",                # VY1
-    "PE": "Prince Edward Island", # VY2
+    "NT": "Northwest Territories",  # VE8
+    "NU": "Nunavut",  # VY0
+    "YT": "Yukon",  # VY1
+    "PE": "Prince Edward Island",  # VY2
     # Special
-    "SEA": "Stations at sea",     # VE0
-    "GOV": "Government of Canada", # VY9
+    "SEA": "Stations at sea",  # VE0
+    "GOV": "Government of Canada",  # VY9
 }
 
 # Mapping of call sign prefixes to provinces/territories
 CANADIAN_CALL_TO_PROVINCE = {
-    "VA1": "NS", "VE1": "NS",           # Nova Scotia
-    "VA2": "QC", "VE2": "QC",           # Quebec
-    "VA3": "ON", "VE3": "ON",           # Ontario
-    "VA4": "MB", "VE4": "MB",           # Manitoba
-    "VA5": "SK", "VE5": "SK",           # Saskatchewan
-    "VA6": "AB", "VE6": "AB",           # Alberta
-    "VA7": "BC", "VE7": "BC",           # British Columbia
-    "VE8": "NT",                        # Northwest Territories
-    "VE9": "NB",                        # New Brunswick
-    "VO1": "NL",                        # Newfoundland
-    "VO2": "NL_LAB",                    # Labrador
-    "VY0": "NU",                        # Nunavut
-    "VY1": "YT",                        # Yukon
-    "VY2": "PE",                        # Prince Edward Island
-    "VY9": "GOV",                       # Government of Canada
-    "VE0": "SEA",                       # Stations at sea
+    "VA1": "NS",
+    "VE1": "NS",  # Nova Scotia
+    "VA2": "QC",
+    "VE2": "QC",  # Quebec
+    "VA3": "ON",
+    "VE3": "ON",  # Ontario
+    "VA4": "MB",
+    "VE4": "MB",  # Manitoba
+    "VA5": "SK",
+    "VE5": "SK",  # Saskatchewan
+    "VA6": "AB",
+    "VE6": "AB",  # Alberta
+    "VA7": "BC",
+    "VE7": "BC",  # British Columbia
+    "VE8": "NT",  # Northwest Territories
+    "VE9": "NB",  # New Brunswick
+    "VO1": "NL",  # Newfoundland
+    "VO2": "NL_LAB",  # Labrador
+    "VY0": "NU",  # Nunavut
+    "VY1": "YT",  # Yukon
+    "VY2": "PE",  # Prince Edward Island
+    "VY9": "GOV",  # Government of Canada
+    "VE0": "SEA",  # Stations at sea
 }
 
 # HF bands for Canadian Maple Award (160-10m including WARC)
-CANADIAN_MAPLE_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
+CANADIAN_MAPLE_BANDS = [
+    "160M",
+    "80M",
+    "40M",
+    "30M",
+    "20M",
+    "17M",
+    "15M",
+    "12M",
+    "10M",
+]
 
 # DX Award thresholds for QSO-based (DXQ) and Country-based (DXC) awards
 DX_AWARD_THRESHOLDS = [10, 25, 50, 75, 100, 125, 150, 200, 250, 300, 400, 500]
 
-# Common DXCC entity prefixes for initial country detection
-# This is a simplified list - in production, a full DXCC list would be used
 DXCC_PREFIXES = {
     # North America
-    "K": "United States", "W": "United States", "N": "United States", "A": "United States",
-    "VE": "Canada", "VA": "Canada", "VO": "Canada", "VY": "Canada",
-    "XE": "Mexico", "XF": "Mexico", "4A": "Mexico",
-    
+    "K": "United States",
+    "W": "United States",
+    "N": "United States",
+    "A": "United States",
+    "VE": "Canada",
+    "VA": "Canada",
+    "VO": "Canada",
+    "VY": "Canada",
+    "XE": "Mexico",
+    "XF": "Mexico",
+    "4A": "Mexico",
     # Europe
-    "G": "England", "M": "England", "2E": "England",
-    "DL": "Germany", "DA": "Germany", "DB": "Germany", "DC": "Germany", "DD": "Germany", "DE": "Germany", "DF": "Germany", "DG": "Germany", "DH": "Germany", "DI": "Germany", "DJ": "Germany", "DK": "Germany", "DM": "Germany", "DN": "Germany", "DO": "Germany", "DP": "Germany", "DQ": "Germany", "DR": "Germany", "DS": "Germany", "DT": "Germany",
-    "F": "France", "TM": "France", "TK": "France",
-    "I": "Italy", "IZ": "Italy",
-    "EA": "Spain", "EB": "Spain", "EC": "Spain", "ED": "Spain", "EE": "Spain", "EF": "Spain", "EG": "Spain", "EH": "Spain",
-    "CT": "Portugal", "CQ": "Portugal", "CR": "Portugal", "CS": "Portugal",
-    "PA": "Netherlands", "PB": "Netherlands", "PC": "Netherlands", "PD": "Netherlands", "PE": "Netherlands", "PF": "Netherlands", "PG": "Netherlands", "PH": "Netherlands", "PI": "Netherlands",
-    "ON": "Belgium", "OO": "Belgium", "OP": "Belgium", "OQ": "Belgium", "OR": "Belgium", "OS": "Belgium", "OT": "Belgium",
-    "HB": "Switzerland", "HB0": "Liechtenstein", "HB9": "Switzerland",
+    "G": "England",
+    "M": "England",
+    "2E": "England",
+    "DL": "Germany",
+    "DA": "Germany",
+    "DB": "Germany",
+    "DC": "Germany",
+    "DD": "Germany",
+    "DE": "Germany",
+    "DF": "Germany",
+    "DG": "Germany",
+    "DH": "Germany",
+    "DI": "Germany",
+    "DJ": "Germany",
+    "DK": "Germany",
+    "DM": "Germany",
+    "DN": "Germany",
+    "DO": "Germany",
+    "DP": "Germany",
+    "DQ": "Germany",
+    "DR": "Germany",
+    "F": "France",
+    "TM": "France",
+    "TK": "France",
+    "I": "Italy",
+    "IZ": "Italy",
+    "EA": "Spain",
+    "EB": "Spain",
+    "EC": "Spain",
+    "ED": "Spain",
+    "EE": "Spain",
+    "EF": "Spain",
+    "EG": "Spain",
+    "EH": "Spain",
+    "CT": "Portugal",
+    "CQ": "Portugal",
+    "CR": "Portugal",
+    "CS": "Portugal",
+    "PA": "Netherlands",
+    "PB": "Netherlands",
+    "PC": "Netherlands",
+    "PD": "Netherlands",
+    "PE": "Netherlands",
+    "PF": "Netherlands",
+    "PG": "Netherlands",
+    "PH": "Netherlands",
+    "PI": "Netherlands",
+    "ON": "Belgium",
+    "OO": "Belgium",
+    "OP": "Belgium",
+    "OQ": "Belgium",
+    "OR": "Belgium",
+    "OS": "Belgium",
+    "OT": "Belgium",
+    "HB": "Switzerland",
+    "HB0": "Liechtenstein",
+    "HB9": "Switzerland",
     "OE": "Austria",
-    "OK": "Czech Republic", "OL": "Czech Republic",
+    "OK": "Czech Republic",
+    "OL": "Czech Republic",
     "OM": "Slovak Republic",
-    "SP": "Poland", "SN": "Poland", "SO": "Poland", "SQ": "Poland", "SR": "Poland",
-    "YO": "Romania", "YP": "Romania", "YQ": "Romania", "YR": "Romania",
+    "SP": "Poland",
+    "SN": "Poland",
+    "SO": "Poland",
+    "SQ": "Poland",
+    "SR": "Poland",
+    "YO": "Romania",
+    "YP": "Romania",
+    "YQ": "Romania",
+    "YR": "Romania",
     "LZ": "Bulgaria",
-    "SV": "Greece", "SW": "Greece", "SX": "Greece", "SY": "Greece", "SZ": "Greece",
-    "YU": "Serbia", "YT": "Serbia", "YZ": "Serbia",
+    "SV": "Greece",
+    "SW": "Greece",
+    "SX": "Greece",
+    "SY": "Greece",
+    "SZ": "Greece",
+    "YU": "Serbia",
+    "YT": "Serbia",
+    "YZ": "Serbia",
     "9A": "Croatia",
     "S5": "Slovenia",
     "T9": "Bosnia-Herzegovina",
@@ -252,30 +364,132 @@ DXCC_PREFIXES = {
     "YL": "Latvia",
     "ES": "Estonia",
     "OH": "Finland",
-    "SM": "Sweden", "SA": "Sweden", "SB": "Sweden", "SC": "Sweden", "SD": "Sweden", "SE": "Sweden", "SF": "Sweden", "SG": "Sweden", "SH": "Sweden", "SI": "Sweden", "SJ": "Sweden", "SK": "Sweden", "SL": "Sweden",
-    "LA": "Norway", "LB": "Norway", "LC": "Norway", "LD": "Norway", "LE": "Norway", "LF": "Norway", "LG": "Norway", "LH": "Norway", "LI": "Norway", "LJ": "Norway", "LK": "Norway", "LL": "Norway", "LM": "Norway", "LN": "Norway",
-    "OZ": "Denmark", "OV": "Faroe Islands", "OY": "Faroe Islands",
+    "SM": "Sweden",
+    "SA": "Sweden",
+    "SB": "Sweden",
+    "SC": "Sweden",
+    "SD": "Sweden",
+    "SE": "Sweden",
+    "SF": "Sweden",
+    "SG": "Sweden",
+    "SH": "Sweden",
+    "SI": "Sweden",
+    "SJ": "Sweden",
+    "SK": "Sweden",
+    "SL": "Sweden",
+    "LA": "Norway",
+    "LB": "Norway",
+    "LC": "Norway",
+    "LD": "Norway",
+    "LE": "Norway",
+    "LF": "Norway",
+    "LG": "Norway",
+    "LH": "Norway",
+    "LI": "Norway",
+    "LJ": "Norway",
+    "LK": "Norway",
+    "LL": "Norway",
+    "LM": "Norway",
+    "LN": "Norway",
+    "OZ": "Denmark",
+    "OV": "Faroe Islands",
+    "OY": "Faroe Islands",
     "TF": "Iceland",
-    "EI": "Ireland", "EJ": "Ireland",
-    "R": "European Russia", "U": "European Russia", "RA": "European Russia", "RB": "European Russia", "RC": "European Russia", "RD": "European Russia", "RE": "European Russia", "RF": "European Russia", "RG": "European Russia", "RH": "European Russia", "RI": "European Russia", "RJ": "European Russia", "RK": "European Russia", "RL": "European Russia", "RM": "European Russia", "RN": "European Russia", "RO": "European Russia", "RP": "European Russia", "RQ": "European Russia", "RR": "European Russia", "RS": "European Russia", "RT": "European Russia", "RU": "European Russia", "RV": "European Russia", "RW": "European Russia", "RX": "European Russia", "RY": "European Russia", "RZ": "European Russia",
-    
+    "EI": "Ireland",
+    "EJ": "Ireland",
+    "R": "European Russia",
+    "U": "European Russia",
+    "RA": "European Russia",
+    "RB": "European Russia",
+    "RC": "European Russia",
+    "RD": "European Russia",
+    "RE": "European Russia",
+    "RF": "European Russia",
+    "RG": "European Russia",
+    "RH": "European Russia",
+    "RI": "European Russia",
+    "RJ": "European Russia",
+    "RK": "European Russia",
+    "RL": "European Russia",
+    "RM": "European Russia",
+    "RN": "European Russia",
+    "RO": "European Russia",
+    "RP": "European Russia",
+    "RQ": "European Russia",
+    "RR": "European Russia",
+    "RS": "European Russia",
+    "RT": "European Russia",
+    "RU": "European Russia",
+    "RV": "European Russia",
+    "RW": "European Russia",
+    "RX": "European Russia",
+    "RY": "European Russia",
+    "RZ": "European Russia",
     # Asia
-    "JA": "Japan", "JE": "Japan", "JF": "Japan", "JG": "Japan", "JH": "Japan", "JI": "Japan", "JJ": "Japan", "JK": "Japan", "JL": "Japan", "JM": "Japan", "JN": "Japan", "JO": "Japan", "JP": "Japan", "JQ": "Japan", "JR": "Japan", "JS": "Japan",
-    "HL": "South Korea", "HM": "South Korea", "DS": "South Korea", "DT": "South Korea",
-    "VU": "India", "AT": "India", "VT": "India", "VW": "India",
-    "VR": "Hong Kong", "VR2": "Hong Kong",
-    "XX": "China", "BY": "China", "B": "China",
-    "VK": "Australia", "VH": "Australia", "VI": "Australia", "VJ": "Australia",
-    "ZL": "New Zealand", "ZK": "New Zealand", "ZM": "New Zealand",
-    "YB": "Indonesia", "YC": "Indonesia", "YD": "Indonesia", "YE": "Indonesia", "YF": "Indonesia", "YG": "Indonesia", "YH": "Indonesia",
-    "HS": "Thailand", "E2": "Thailand",
-    "9V": "Singapore", "9M2": "West Malaysia", "9M6": "East Malaysia",
-    "DU": "Philippines", "DV": "Philippines", "DW": "Philippines", "DX": "Philippines", "DY": "Philippines", "DZ": "Philippines",
-    
+    "JA": "Japan",
+    "JE": "Japan",
+    "JF": "Japan",
+    "JG": "Japan",
+    "JH": "Japan",
+    "JI": "Japan",
+    "JJ": "Japan",
+    "JK": "Japan",
+    "JL": "Japan",
+    "JM": "Japan",
+    "JN": "Japan",
+    "JO": "Japan",
+    "JP": "Japan",
+    "JQ": "Japan",
+    "JR": "Japan",
+    "JS": "Japan",
+    "HL": "South Korea",
+    "HM": "South Korea",
+    "DS": "South Korea",
+    "DT": "South Korea",
+    "VU": "India",
+    "AT": "India",
+    "VT": "India",
+    "VW": "India",
+    "VR": "Hong Kong",
+    "VR2": "Hong Kong",
+    "BY": "China",
+    "B": "China",
+    "VK": "Australia",
+    "VH": "Australia",
+    "VI": "Australia",
+    "VJ": "Australia",
+    "ZL": "New Zealand",
+    "ZK": "New Zealand",
+    "ZM": "New Zealand",
+    "YB": "Indonesia",
+    "YC": "Indonesia",
+    "YD": "Indonesia",
+    "YE": "Indonesia",
+    "YF": "Indonesia",
+    "YG": "Indonesia",
+    "YH": "Indonesia",
+    "HS": "Thailand",
+    "E2": "Thailand",
+    "9V": "Singapore",
+    "9M2": "West Malaysia",
+    "9M6": "East Malaysia",
+    "DU": "Philippines",
+    "DV": "Philippines",
+    "DW": "Philippines",
+    "DX": "Philippines",
+    "DY": "Philippines",
+    "DZ": "Philippines",
+    "YK": "Syria",
+    "XX": "China",
     # Africa
-    "ZS": "South Africa", "ZR": "South Africa", "ZT": "South Africa", "ZU": "South Africa",
-    "SU": "Egypt", "SS": "Egypt",
-    "CN": "Morocco", "5C": "Morocco",
+    "ZS": "South Africa",
+    "ZR": "South Africa",
+    "ZT": "South Africa",
+    "ZU": "South Africa",
+    "SU": "Egypt",
+    "SS": "Egypt",
+    "CN": "Morocco",
+    "5C": "Morocco",
     "7X": "Algeria",
     "3V": "Tunisia",
     "5A": "Libya",
@@ -301,34 +515,103 @@ DXCC_PREFIXES = {
     "7P": "Lesotho",
     "3DA": "Swaziland",
     "V9": "Brunei",
-    
     # Oceania
-    "YJ": "Vanuatu", "YK": "Syria", "T3": "Kiribati", "T2": "Tuvalu", "5W": "Samoa", "3D2": "Fiji", "E5": "Cook Islands",
-    "FK": "New Caledonia", "FO": "French Polynesia", "FW": "Wallis and Futuna",
-    "P2": "Papua New Guinea", "P29": "Papua New Guinea",
-    "YB": "Indonesia",
-    
-    # South America  
-    "PY": "Brazil", "PP": "Brazil", "PQ": "Brazil", "PR": "Brazil", "PS": "Brazil", "PT": "Brazil", "PU": "Brazil", "PV": "Brazil", "PW": "Brazil", "PX": "Brazil", "ZV": "Brazil", "ZW": "Brazil", "ZX": "Brazil", "ZY": "Brazil", "ZZ": "Brazil",
-    "LU": "Argentina", "AY": "Argentina", "AZ": "Argentina", "L2": "Argentina", "L3": "Argentina", "L4": "Argentina", "L5": "Argentina", "L6": "Argentina", "L7": "Argentina", "L8": "Argentina", "L9": "Argentina", "LO": "Argentina", "LP": "Argentina", "LQ": "Argentina", "LR": "Argentina", "LS": "Argentina", "LT": "Argentina", "LV": "Argentina", "LW": "Argentina",
-    "CE": "Chile", "CA": "Chile", "CB": "Chile", "CC": "Chile", "CD": "Chile", "CF": "Chile", "CG": "Chile", "CH": "Chile", "CI": "Chile", "CJ": "Chile", "CK": "Chile", "CL": "Chile", "CM": "Chile", "CN": "Chile", "CO": "Chile", "CP": "Chile", "CQ": "Chile", "CR": "Chile", "CS": "Chile", "CT": "Chile", "CU": "Chile", "CV": "Chile", "CW": "Chile", "CX": "Chile", "CY": "Chile", "CZ": "Chile",
-    "CP": "Bolivia", "C7": "Bolivia",
-    "OA": "Peru", "OB": "Peru", "OC": "Peru", "4T": "Peru",
-    "HC": "Ecuador", "HD": "Ecuador", "HE": "Ecuador", "HF": "Ecuador", "HG": "Ecuador", "HH": "Ecuador", "HI": "Ecuador",
-    "HJ": "Colombia", "HK": "Colombia", "5J": "Colombia", "5K": "Colombia",
-    "YV": "Venezuela", "YW": "Venezuela", "YX": "Venezuela", "YY": "Venezuela", "4M": "Venezuela",
+    "YJ": "Vanuatu",
+    "T3": "Kiribati",
+    "T2": "Tuvalu",
+    "5W": "Samoa",
+    "3D2": "Fiji",
+    "E5": "Cook Islands",
+    "FK": "New Caledonia",
+    "FO": "French Polynesia",
+    "FW": "Wallis and Futuna",
+    "P2": "Papua New Guinea",
+    "P29": "Papua New Guinea",
+    # South America
+    "PY": "Brazil",
+    "PP": "Brazil",
+    "PQ": "Brazil",
+    "PR": "Brazil",
+    "PS": "Brazil",
+    "PT": "Brazil",
+    "PU": "Brazil",
+    "PV": "Brazil",
+    "PW": "Brazil",
+    "PX": "Brazil",
+    "ZV": "Brazil",
+    "ZW": "Brazil",
+    "ZX": "Brazil",
+    "ZY": "Brazil",
+    "ZZ": "Brazil",
+    "LU": "Argentina",
+    "AY": "Argentina",
+    "AZ": "Argentina",
+    "L2": "Argentina",
+    "L3": "Argentina",
+    "L4": "Argentina",
+    "L5": "Argentina",
+    "L6": "Argentina",
+    "L7": "Argentina",
+    "L8": "Argentina",
+    "L9": "Argentina",
+    "LO": "Argentina",
+    "LP": "Argentina",
+    "LQ": "Argentina",
+    "LR": "Argentina",
+    "LS": "Argentina",
+    "LT": "Argentina",
+    "LV": "Argentina",
+    "LW": "Argentina",
+    "CE": "Chile",
+    "CA": "Chile",
+    "CB": "Chile",
+    "CC": "Chile",
+    "CD": "Chile",
+    "CF": "Chile",
+    "CG": "Chile",
+    "CH": "Chile",
+    "CI": "Chile",
+    "CJ": "Chile",
+    "CK": "Chile",
+    "CL": "Chile",
+    "CM": "Chile",
+    "CO": "Chile",
+    "CP": "Bolivia",
+    "C7": "Bolivia",
+    "OA": "Peru",
+    "OB": "Peru",
+    "OC": "Peru",
+    "4T": "Peru",
+    "HC": "Ecuador",
+    "HD": "Ecuador",
+    "HE": "Ecuador",
+    "HF": "Ecuador",
+    "HG": "Ecuador",
+    "HH": "Ecuador",
+    "HI": "Ecuador",
+    "HJ": "Colombia",
+    "HK": "Colombia",
+    "5J": "Colombia",
+    "5K": "Colombia",
+    "YV": "Venezuela",
+    "YW": "Venezuela",
+    "YX": "Venezuela",
+    "YY": "Venezuela",
+    "4M": "Venezuela",
     "PZ": "Suriname",
     "8R": "Guyana",
     "PJ": "Netherlands Antilles",
     "FY": "French Guiana",
-    "PY0F": "Fernando de Noronha", "PY0S": "St. Peter and St. Paul Rocks", "PY0T": "Trindade and Martim Vaz",
+    "PY0F": "Fernando de Noronha",
+    "PY0S": "St. Peter and St. Paul Rocks",
+    "PY0T": "Trindade and Martim Vaz",
 }
 
 # Continent mapping for DXCC countries
 COUNTRY_TO_CONTINENT = {
     # North America
     "United States": "NA",
-    "Canada": "NA", 
+    "Canada": "NA",
     "Mexico": "NA",
     "Alaska": "NA",
     "Hawaii": "NA",
@@ -351,7 +634,6 @@ COUNTRY_TO_CONTINENT = {
     "Puerto Rico": "NA",
     "US Virgin Islands": "NA",
     "British Virgin Islands": "NA",
-    
     # South America
     "Argentina": "SA",
     "Bolivia": "SA",
@@ -370,7 +652,6 @@ COUNTRY_TO_CONTINENT = {
     "St. Peter and St. Paul Rocks": "SA",
     "Trindade and Martim Vaz": "SA",
     "Netherlands Antilles": "SA",
-    
     # Europe
     "Albania": "EU",
     "Andorra": "EU",
@@ -429,7 +710,6 @@ COUNTRY_TO_CONTINENT = {
     "Isle of Man": "EU",
     "Jersey": "EU",
     "Vatican": "EU",
-    
     # Africa
     "Algeria": "AF",
     "Angola": "AF",
@@ -485,7 +765,6 @@ COUNTRY_TO_CONTINENT = {
     "Uganda": "AF",
     "Zambia": "AF",
     "Zimbabwe": "AF",
-    
     # Asia
     "Afghanistan": "AS",
     "Bahrain": "AS",
@@ -536,8 +815,7 @@ COUNTRY_TO_CONTINENT = {
     "Vietnam": "AS",
     "Yemen": "AS",
     "Asiatic Russia": "AS",
-    
-    # Oceania  
+    # Oceania
     "Australia": "OC",
     "Cook Islands": "OC",
     "Fiji": "OC",
@@ -556,30 +834,31 @@ COUNTRY_TO_CONTINENT = {
     "Tuvalu": "OC",
     "Vanuatu": "OC",
     "Wallis and Futuna": "OC",
-    
     # Antarctica
     "Antarctica": "AN",
 }
 
+
 def get_continent_from_country(country: str) -> str | None:
     """
     Get continent code from DXCC country name.
-    
+
     Args:
         country: DXCC country name
-        
+
     Returns:
         Continent code (NA, SA, EU, AF, AS, OC, AN) or None if not found
     """
     return COUNTRY_TO_CONTINENT.get(country)
 
+
 def get_continent_from_call(call: str) -> str | None:
     """
     Get continent code from call sign.
-    
+
     Args:
         call: Amateur radio call sign
-        
+
     Returns:
         Continent code (NA, SA, EU, AF, AS, OC, AN) or None if not found
     """
@@ -588,7 +867,13 @@ def get_continent_from_call(call: str) -> str | None:
         return get_continent_from_country(country)
     return None
 
-ROSTER_LINE_RE = re.compile(r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+(?P<call>[A-Z0-9/]+)\s+[\w\s-]+\s+[\w\s-]+\s+(?P<state>[A-Z]{2,3})\s+")
+
+ROSTER_LINE_RE = re.compile(
+    r"^(?P<number>\d+)(?P<suffix>[A-Z]*)\s+"
+    r"(?P<call>[A-Z0-9/]+)\s+\w[\w\s-]*\s+\w[\w\s-]*\s+"
+    r"(?P<state>[A-Z]{2,3})\s+"
+)
+
 
 async def fetch_member_roster(
     url: str | None = None,
@@ -600,10 +885,12 @@ async def fetch_member_roster(
     Parameters:
         url: explicit single URL to try first (optional)
         timeout: request timeout seconds
-        candidates: explicit ordered list of candidate URLs to try; if None, uses defaults
+        candidates: ordered list of candidate URLs to try;
+            if None, uses defaults
 
     Returns:
-        List[Member] parsed (possibly empty if parse failed for all) – raises last error if all fail with non-404.
+        List[Member] parsed (possibly empty).
+        Raises last error if all candidates fail with non-404.
     """
     tried: List[Tuple[str, str]] = []  # (url, error summary)
     urls: List[str] = []
@@ -639,12 +926,13 @@ async def fetch_member_roster(
             if status == 404:
                 continue  # try next
             raise
-        except Exception as e:  # pragma: no cover
+        except httpx.RequestError as e:  # pragma: no cover
             tried.append((target, e.__class__.__name__))
             last_exception = e
             continue
 
-    # All candidates exhausted – if we had any parse-empty but no members, return empty list
+    # All candidates exhausted – if we had any parse-empty but no members,
+    # return empty
     if last_exception and not any(err.startswith("parse-") for _, err in tried):
         # Provide aggregated context in exception chain
         raise RuntimeError(
@@ -652,6 +940,7 @@ async def fetch_member_roster(
             + ", ".join(f"{u} ({err})" for u, err in tried)
         ) from last_exception
     return []
+
 
 def _parse_roster_text(text: str) -> List[Member]:
     """Internal helper to parse roster HTML/text into Member objects."""
@@ -661,13 +950,15 @@ def _parse_roster_text(text: str) -> List[Member]:
         soup = BeautifulSoup(text, "html.parser")
         rows = soup.find_all("tr")
         for tr in rows:
-            cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"]) ]
-            if len(cells) < 5:  # Need at least 5 cells for number, call, name, city, state
+            cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
+            # Need at least 5 cells for number, call, name, city, state
+            if len(cells) < 5:
                 continue
             try:
-                # Extract numeric part and suffix from SKCC number (e.g., "660S" -> 660, "S")
+                # Extract numeric part and suffix from SKCC number
+                # Example: "660S" -> 660, "S"
                 number_text = cells[0].strip()
-                suffix_match = re.match(r'^(\d+)([A-Z]*)', number_text)
+                suffix_match = re.match(r"^(\d+)([A-Z]*)", number_text)
                 if not suffix_match:
                     continue
                 number = int(suffix_match.group(1))
@@ -676,23 +967,34 @@ def _parse_roster_text(text: str) -> List[Member]:
                 continue
             call_candidate = None
             for c in cells[1:4]:
-                if re.fullmatch(r"[A-Z0-9/]{3,}", c.upper()) and any(ch.isdigit() for ch in c):
+                if re.fullmatch(r"[A-Z0-9/]{3,}", c.upper()) and any(
+                    ch.isdigit() for ch in c
+                ):
                     call_candidate = c.upper()
                     break
             if call_candidate:
                 call_candidate = normalize_call(call_candidate)
                 if call_candidate:  # Only add if normalization succeeded
-                    # Extract state from cell[4] - format examples: "NC", "CA", "ON" (for Canada), etc.
+                    # Extract state from cell[4] - examples: "NC", "CA",
+                    # "ON" (for Canada), etc.
                     state = cells[4].strip() if len(cells) > 4 else None
-                    # Only keep 2-3 character state/province codes, filter out country codes
+                    # Keep only 2-3 char state/province codes;
+                    # filter out country codes
                     if state and len(state) <= 3 and state.isalpha():
                         state = state.upper()
                     else:
                         state = None
-                    members.append(Member(call=call_candidate, number=number, suffix=suffix, state=state))
+                    members.append(
+                        Member(
+                            call=call_candidate,
+                            number=number,
+                            suffix=suffix,
+                            state=state,
+                        )
+                    )
         if members:
             return members
-    except Exception:  # pragma: no cover
+    except (AttributeError, ValueError):  # pragma: no cover
         members = []
     # Fallback regex scan
     for line in text.splitlines():
@@ -709,11 +1011,16 @@ def _parse_roster_text(text: str) -> List[Member]:
         members.append(Member(call=call, number=number, suffix=suffix, state=state))
     return members
 
-async def fetch_award_thresholds(url: str = DEFAULT_AWARDS_URL, timeout: float = 15.0) -> List[Tuple[str, int]]:
+
+async def fetch_award_thresholds(
+    url: str = DEFAULT_AWARDS_URL,
+    timeout: float = 15.0,
+) -> List[Tuple[str, int]]:
     """Attempt to dynamically discover award thresholds from the awards page.
 
-    Falls back to static AWARD_THRESHOLDS if parsing fails. This is a heuristic:
-    searches page text for known award names followed by an integer.
+    Falls back to static AWARD_THRESHOLDS if parsing fails.
+    This is a heuristic: searches page text for known award names
+    followed by an integer.
     """
     names = [n for n, _ in AWARD_THRESHOLDS]
     try:
@@ -723,7 +1030,7 @@ async def fetch_award_thresholds(url: str = DEFAULT_AWARDS_URL, timeout: float =
         text = resp.text
         found: Dict[str, int] = {}
         for n in names:
-            # Regex: AwardName followed within 30 chars by a number (avoid greedy newline consumption)
+            # Regex: AwardName followed within 30 chars by a number
             pat = re.compile(rf"{n}[^\n\r]{{0,30}}?(\d{{2,5}})", re.IGNORECASE)
             m = pat.search(text)
             if m:
@@ -737,43 +1044,52 @@ async def fetch_award_thresholds(url: str = DEFAULT_AWARDS_URL, timeout: float =
         for n, default_req in AWARD_THRESHOLDS:
             dynamic.append((n, found.get(n, default_req)))
         return dynamic
-    except Exception:  # pragma: no cover
+    except httpx.RequestError:  # pragma: no cover
         return AWARD_THRESHOLDS
 
-ADIF_FIELD_RE = re.compile(r"<(?P<name>[A-Za-z0-9_]+):(?P<len>\d+)(:[A-Za-z0-9]+)?>", re.IGNORECASE)
-# Regex to extract leading numeric portion of SKCC field (e.g., 14947C -> 14947)
+
+ADIF_FIELD_RE = re.compile(
+    r"<(?P<name>[A-Za-z0-9_]+):(?P<len>\d+)(:[A-Za-z0-9]+)?>",
+    re.IGNORECASE,
+)
+# Extract leading numeric portion of SKCC field (e.g., 14947C -> 14947)
 SKCC_FIELD_RE = re.compile(r"^(?P<num>\d+)(?P<suffix>[A-Z]*)")
 
 CALL_PORTABLE_SUFFIX_RE = re.compile(r"(?P<base>[A-Z0-9]+)(/[A-Z0-9]{1,5})+$")
 LEADING_PREFIX_RE = re.compile(r"^[A-Z0-9]{1,4}/(?P<base>[A-Z0-9]+)$")
-PORTABLE_SUFFIX_TOKENS = {"P","QRP","M","MM","AM","SOTA"}
+PORTABLE_SUFFIX_TOKENS = {"P", "QRP", "M", "MM", "AM", "SOTA"}
+
 
 def normalize_call(call: str | None) -> str | None:
     if not call:
         return call
     c = call.strip().upper()
-    # Strip leading prefix like DL/W1ABC -> W1ABC (keep base that contains a digit)
+    # Strip leading prefix like DL/W1ABC -> W1ABC
+    # (keep base that contains a digit)
     m2 = LEADING_PREFIX_RE.match(c)
     if m2 and any(ch.isdigit() for ch in m2.group("base")):
         c = m2.group("base")
     # Strip trailing portable suffix chains
     # e.g. K1ABC/P, K1ABC/QRP, K1ABC/7/P
-    parts = c.split('/')
+    parts = c.split("/")
     # If multiple segments, iteratively drop suffix tokens from the end
     while len(parts) > 1 and parts[-1] in PORTABLE_SUFFIX_TOKENS:
         parts.pop()
-    # Also if last segment is just a single digit (region) we keep base (common portable) but only if base still has a digit
+    # If last segment is a single region digit, keep base (common portable)
+    # but only if base still has a digit
     if len(parts) > 1 and len(parts[-1]) == 1 and parts[-1].isdigit():
-        # Keep base portion before region digit for matching, but only if base has digit
+        # Keep base portion before region digit for matching
+        # (only if base has digit)
         base_candidate = parts[0]
         if any(ch.isdigit() for ch in base_candidate):
             parts = [base_candidate]
-    c = '/'.join(parts)
+    c = "/".join(parts)
     # Finally apply suffix regex collapse
     m = CALL_PORTABLE_SUFFIX_RE.fullmatch(c)
     if m:
         return m.group("base")
     return c
+
 
 def generate_call_aliases(call: str) -> List[str]:
     """Generate alias variants for a member callsign to improve matching.
@@ -785,17 +1101,19 @@ def generate_call_aliases(call: str) -> List[str]:
     Duplicates removed preserving order.
     """
     variants: List[str] = []
+
     def add(v: str):
         if v not in variants:
             variants.append(v)
+
     base = call.upper()
     add(base)
     n = normalize_call(base)
     if n:
         add(n)
     # Remove trailing region digit
-    if '/' in base:
-        segs = base.split('/')
+    if "/" in base:
+        segs = base.split("/")
         if len(segs) == 2 and len(segs[1]) == 1 and segs[1].isdigit():
             add(segs[0])
     # Leading prefix removal
@@ -804,11 +1122,23 @@ def generate_call_aliases(call: str) -> List[str]:
         add(m2.group("base"))
     return variants
 
+
 def parse_adif(content: str) -> List[QSO]:
     """Parse minimal subset of ADIF into QSO objects.
 
-    Supports fields: CALL, BAND, MODE, QSO_DATE. Records terminated by <EOR> (case-insensitive).
+    Supports fields: CALL, BAND, MODE, QSO_DATE.
+    Records terminated by <EOR> (case-insensitive).
     """
+
+    def _extract_skcc_from_comment(text: str | None) -> str | None:
+        if not text:
+            return None
+        # Look for patterns like "SKCC: 14947C" or "SKCC 14947C" in the comment
+        m = re.search(r"\bSKCC\b\s*[:#-]?\s*(\d+[A-Z]?)", text.upper())
+        if m:
+            return m.group(1)
+        return None
+
     records: List[QSO] = []
     idx = 0
     length = len(content)
@@ -819,7 +1149,11 @@ def parse_adif(content: str) -> List[QSO]:
             # End of record
             if "call" in current:
                 raw_call = normalize_call(str(current.get("call", "")).upper())
-                skcc_raw = current.get("skcc") or current.get("app_skcc")
+                skcc_raw = (
+                    current.get("skcc")
+                    or current.get("app_skcc")
+                    or _extract_skcc_from_comment(current.get("comment"))
+                )
                 records.append(
                     QSO(
                         call=raw_call,
@@ -828,7 +1162,13 @@ def parse_adif(content: str) -> List[QSO]:
                         date=current.get("qso_date"),
                         skcc=skcc_raw,
                         time_on=current.get("time_on"),
-                        key_type=(current.get("key") or current.get("app_skcc_key") or current.get("skcc_key") or current.get("app_key")),
+                        key_type=(
+                            current.get("key")
+                            or current.get("app_skcc_key")
+                            or current.get("skcc_key")
+                            or current.get("app_key")
+                            or current.get("app_skcclogger_keytype")
+                        ),
                         tx_pwr=current.get("tx_pwr"),
                         comment=current.get("comment"),
                     )
@@ -854,7 +1194,11 @@ def parse_adif(content: str) -> List[QSO]:
     # Handle file not ending with <EOR>
     if current.get("call"):
         raw_call = normalize_call(str(current.get("call", "")).upper())
-        skcc_raw = current.get("skcc") or current.get("app_skcc")
+        skcc_raw = (
+            current.get("skcc")
+            or current.get("app_skcc")
+            or _extract_skcc_from_comment(current.get("comment"))
+        )
         records.append(
             QSO(
                 call=raw_call,
@@ -863,12 +1207,19 @@ def parse_adif(content: str) -> List[QSO]:
                 date=current.get("qso_date"),
                 skcc=skcc_raw,
                 time_on=current.get("time_on"),
-                key_type=(current.get("key") or current.get("app_skcc_key") or current.get("skcc_key") or current.get("app_key")),
+                key_type=(
+                    current.get("key")
+                    or current.get("app_skcc_key")
+                    or current.get("skcc_key")
+                    or current.get("app_key")
+                    or current.get("app_skcclogger_keytype")
+                ),
                 tx_pwr=current.get("tx_pwr"),
                 comment=current.get("comment"),
             )
         )
     return records
+
 
 def parse_adif_files(contents: Sequence[str]) -> List[QSO]:
     qsos: List[QSO] = []
@@ -876,8 +1227,9 @@ def parse_adif_files(contents: Sequence[str]) -> List[QSO]:
         qsos.extend(parse_adif(c))
     return qsos
 
+
 # Helper to build sortable timestamp
-from datetime import datetime
+
 
 def _qso_timestamp(q: QSO) -> datetime:
     d = q.date or "00000000"
@@ -889,94 +1241,106 @@ def _qso_timestamp(q: QSO) -> datetime:
         t = t.ljust(6, "0")
     try:
         return datetime.strptime(d + t, "%Y%m%d%H%M%S")
-    except Exception:  # pragma: no cover
+    except (ValueError, TypeError):  # pragma: no cover
         return datetime.min
 
-def get_member_status_at_qso_time(qso: QSO, member: Member | None) -> str | None:
+
+def get_member_status_at_qso_time(qso: QSO, _member: Member | None) -> str | None:
     """
     Get the member's SKCC award status at the time of QSO.
-    
-    SKCC Logger captures the member's award status at QSO time in the SKCC field.
-    For example: "660S" means member #660 had Senator status at QSO time.
-    
-    This is the CORRECT way to determine historical status - from the log data
-    captured at QSO time, not from guessing based on current roster.
-    
+
+    SKCC Logger captures the member's award status at QSO time in the
+    SKCC field. For example: "660S" means member #660 had Senator status
+    at QSO time.
+
+    This is the CORRECT way to determine historical status - from the
+    log data captured at QSO time, not from guessing based on current
+    roster.
+
     Returns the suffix (C/T/S) from the QSO record, or None if no award status.
     """
     if not qso.skcc:
         return None
-    
+
     # Parse SKCC field to extract suffix
     match = SKCC_FIELD_RE.match(qso.skcc.strip().upper())
     if match:
         suffix = match.group("suffix") or None
         return suffix if suffix else None
-    
+
     return None
 
 
-def member_qualifies_for_award_at_qso_time(qso: QSO, member: Member | None, award_threshold: int) -> bool:
+def member_qualifies_for_award_at_qso_time(
+    qso: QSO, member: Member | None, award_threshold: int
+) -> bool:
     """
     Check if a member qualified for an award level at the time of the QSO.
-    
+
     Uses the SKCC field from the QSO record, which contains the member's
-    award status AT THE TIME OF QSO - this is the accurate historical data.
+    award status AT THE TIME OF QSO - this is the accurate historical
+    data.
     """
     if not member:
         return False
-    
+
     # Centurion Award (100): All SKCC members count regardless of status
     if award_threshold <= 100:
         return True
-    
+
     # For Tribune/Senator awards, get the member's status at QSO time
     qso_time_status = get_member_status_at_qso_time(qso, member)
-    
+
     if award_threshold >= 1000:  # Senator
-        return qso_time_status in ['T', 'S']  # Only Tribunes/Senators at QSO time
+        # Only Tribunes/Senators at QSO time
+        return qso_time_status in ["T", "S"]
     elif award_threshold >= 50:  # Tribune (50 contacts)
-        return qso_time_status in ['C', 'T', 'S']  # Centurions/Tribunes/Senators at QSO time
-    
+        # Centurions/Tribunes/Senators at QSO time
+        return qso_time_status in ["C", "T", "S"]
+
     return False
 
 
 def get_canadian_province(call: str) -> str | None:
     """
     Extract Canadian province/territory from call sign.
-    
+
     Args:
         call: Amateur radio call sign
-        
+
     Returns:
         Province/territory code or None if not Canadian or not recognized
     """
     if not call:
         return None
-    
+
     call = call.upper().strip()
-    
+
     # Handle portable operations (remove /suffix)
-    base_call = call.split('/')[0]
-    
+    base_call = call.split("/")[0]
+
     # Check for Canadian prefixes
     for prefix, province in CANADIAN_CALL_TO_PROVINCE.items():
         if base_call.startswith(prefix):
             return province
-    
+
     return None
 
 
-def calculate_canadian_maple_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[CanadianMapleAward]:
+def calculate_canadian_maple_awards(
+    qsos: Sequence[QSO], members: Sequence[Member]
+) -> List[CanadianMapleAward]:
     """
     Calculate Canadian Maple Award progress.
-    
+
     Rules:
     - Yellow: Work 10 provinces/territories on any mix of bands
-    - Orange: Work 10 provinces/territories on a single band (separate award per band)  
-    - Red: Work 10 provinces/territories on each of all 9 HF bands (90 contacts)
+        - Orange: Work 10 provinces/territories on a single band
+            (separate award per band)
+        - Red: Work 10 provinces/territories on each of all 9 HF bands
+            (90 contacts)
     - Gold: Same as Red but QRP (5W or less)
-    
+
     Valid after 1 September 2009 for provinces, January 2014 for territories.
     """
     # Build member lookup
@@ -984,180 +1348,219 @@ def calculate_canadian_maple_awards(qsos: Sequence[QSO], members: Sequence[Membe
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track provinces worked by band
     provinces_by_band = {}  # band -> set of provinces
     provinces_overall = set()
-    
+
     # Track QRP contacts separately
     qrp_provinces_by_band = {}  # band -> set of provinces (QRP only)
     qrp_provinces_overall = set()
-    
+
     for qso in qsos:
         if not qso.call or not qso.band:
             continue
-            
+
         # Must be SKCC member
         if qso.call not in member_by_call:
             continue
-            
+
         province = get_canadian_province(qso.call)
         if not province:
             continue
-            
+
         # Date validation
         if qso.date:
             qso_date = qso.date
-            
+
             # Provinces valid after 1 September 2009
-            if province in ["NS", "QC", "ON", "MB", "SK", "AB", "BC", "NB", "NL", "NL_LAB", "SEA", "GOV"]:
+            if province in [
+                "NS",
+                "QC",
+                "ON",
+                "MB",
+                "SK",
+                "AB",
+                "BC",
+                "NB",
+                "NL",
+                "NL_LAB",
+                "SEA",
+                "GOV",
+            ]:
                 if qso_date < "20090901":
                     continue
-                    
+
             # Territories valid after January 2014
             elif province in ["NT", "NU", "YT", "PE"]:
                 if qso_date < "20140101":
                     continue
-        
+
         # Normalize band name
         band = qso.band.upper()
         if band not in CANADIAN_MAPLE_BANDS:
             continue
-            
+
         # Track province by band
         if band not in provinces_by_band:
             provinces_by_band[band] = set()
         provinces_by_band[band].add(province)
         provinces_overall.add(province)
-        
+
         # Check if QRP (5W or less)
         is_qrp = False
-        if hasattr(qso, 'tx_pwr') and qso.tx_pwr:
+        if hasattr(qso, "tx_pwr") and qso.tx_pwr:
             try:
                 power = float(qso.tx_pwr)
                 is_qrp = power <= 5.0
             except (ValueError, TypeError):
                 pass
         # Also check for QRP indicator in comment or mode
-        if (hasattr(qso, 'comment') and qso.comment and 'QRP' in qso.comment.upper()) or \
-           (qso.mode and 'QRP' in qso.mode.upper()):
+        if (
+            hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()
+        ) or (qso.mode and "QRP" in qso.mode.upper()):
             is_qrp = True
-            
+
         if is_qrp:
             if band not in qrp_provinces_by_band:
                 qrp_provinces_by_band[band] = set()
             qrp_provinces_by_band[band].add(province)
             qrp_provinces_overall.add(province)
-    
+
     awards = []
-    
+
     # Yellow Maple Award (10 provinces on any mix of bands)
     yellow_achieved = len(provinces_overall) >= 10
-    awards.append(CanadianMapleAward(
-        name="Canadian Maple",
-        level="Yellow",
-        required_provinces=10,
-        required_bands=None,
-        band=None,
-        qrp_required=False,
-        current_provinces=len(provinces_overall),
-        current_bands=len(provinces_by_band),
-        achieved=yellow_achieved,
-        provinces_worked=sorted(list(provinces_overall)),
-        bands_worked=sorted(list(provinces_by_band.keys()))
-    ))
-    
+    awards.append(
+        CanadianMapleAward(
+            name="Canadian Maple",
+            level="Yellow",
+            required_provinces=10,
+            required_bands=None,
+            band=None,
+            qrp_required=False,
+            current_provinces=len(provinces_overall),
+            current_bands=len(provinces_by_band),
+            achieved=yellow_achieved,
+            provinces_worked=sorted(list(provinces_overall)),
+            bands_worked=sorted(list(provinces_by_band.keys())),
+        )
+    )
+
     # Orange Maple Award (10 provinces on single band - one award per band)
     for band in CANADIAN_MAPLE_BANDS:
         band_provinces = provinces_by_band.get(band, set())
         orange_achieved = len(band_provinces) >= 10
-        awards.append(CanadianMapleAward(
-            name="Canadian Maple",
-            level="Orange",
-            required_provinces=10,
-            required_bands=1,
-            band=band,
-            qrp_required=False,
-            current_provinces=len(band_provinces),
-            current_bands=1 if band_provinces else 0,
-            achieved=orange_achieved,
-            provinces_worked=sorted(list(band_provinces)),
-            bands_worked=[band] if band_provinces else []
-        ))
-    
+        awards.append(
+            CanadianMapleAward(
+                name="Canadian Maple",
+                level="Orange",
+                required_provinces=10,
+                required_bands=1,
+                band=band,
+                qrp_required=False,
+                current_provinces=len(band_provinces),
+                current_bands=1 if band_provinces else 0,
+                achieved=orange_achieved,
+                provinces_worked=sorted(list(band_provinces)),
+                bands_worked=[band] if band_provinces else [],
+            )
+        )
+
     # Red Maple Award (10 provinces on each of all 9 bands)
-    bands_with_10_provinces = sum(1 for band in CANADIAN_MAPLE_BANDS 
-                                 if len(provinces_by_band.get(band, set())) >= 10)
+    bands_with_10_provinces = sum(
+        1
+        for band in CANADIAN_MAPLE_BANDS
+        if len(provinces_by_band.get(band, set())) >= 10
+    )
     red_achieved = bands_with_10_provinces >= 9
-    awards.append(CanadianMapleAward(
-        name="Canadian Maple",
-        level="Red",
-        required_provinces=10,
-        required_bands=9,
-        band=None,
-        qrp_required=False,
-        current_provinces=len(provinces_overall),
-        current_bands=bands_with_10_provinces,
-        achieved=red_achieved,
-        provinces_worked=sorted(list(provinces_overall)),
-        bands_worked=[band for band in CANADIAN_MAPLE_BANDS 
-                     if len(provinces_by_band.get(band, set())) >= 10]
-    ))
-    
+    awards.append(
+        CanadianMapleAward(
+            name="Canadian Maple",
+            level="Red",
+            required_provinces=10,
+            required_bands=9,
+            band=None,
+            qrp_required=False,
+            current_provinces=len(provinces_overall),
+            current_bands=bands_with_10_provinces,
+            achieved=red_achieved,
+            provinces_worked=sorted(list(provinces_overall)),
+            bands_worked=[
+                band
+                for band in CANADIAN_MAPLE_BANDS
+                if len(provinces_by_band.get(band, set())) >= 10
+            ],
+        )
+    )
+
     # Gold Maple Award (10 provinces on each of all 9 bands, QRP only)
-    qrp_bands_with_10_provinces = sum(1 for band in CANADIAN_MAPLE_BANDS 
-                                     if len(qrp_provinces_by_band.get(band, set())) >= 10)
+    qrp_bands_with_10_provinces = sum(
+        1
+        for band in CANADIAN_MAPLE_BANDS
+        if len(qrp_provinces_by_band.get(band, set())) >= 10
+    )
     gold_achieved = qrp_bands_with_10_provinces >= 9
-    awards.append(CanadianMapleAward(
-        name="Canadian Maple",
-        level="Gold",
-        required_provinces=10,
-        required_bands=9,
-        band=None,
-        qrp_required=True,
-        current_provinces=len(qrp_provinces_overall),
-        current_bands=qrp_bands_with_10_provinces,
-        achieved=gold_achieved,
-        provinces_worked=sorted(list(qrp_provinces_overall)),
-        bands_worked=[band for band in CANADIAN_MAPLE_BANDS 
-                     if len(qrp_provinces_by_band.get(band, set())) >= 10]
-    ))
-    
+    awards.append(
+        CanadianMapleAward(
+            name="Canadian Maple",
+            level="Gold",
+            required_provinces=10,
+            required_bands=9,
+            band=None,
+            qrp_required=True,
+            current_provinces=len(qrp_provinces_overall),
+            current_bands=qrp_bands_with_10_provinces,
+            achieved=gold_achieved,
+            provinces_worked=sorted(list(qrp_provinces_overall)),
+            bands_worked=[
+                band
+                for band in CANADIAN_MAPLE_BANDS
+                if len(qrp_provinces_by_band.get(band, set())) >= 10
+            ],
+        )
+    )
+
     return awards
 
 
 def get_dxcc_country(call: str) -> str | None:
     """
     Extract DXCC country from call sign.
-    
+
     Args:
         call: Amateur radio call sign
-        
+
     Returns:
         DXCC country name or None if not recognized
     """
     if not call:
         return None
-    
+
     call = call.upper().strip()
-    
+
     # Handle portable operations (remove /suffix)
-    base_call = call.split('/')[0]
-    
+    base_call = call.split("/")[0]
+
     # Check for exact prefix matches first (longest first)
     sorted_prefixes = sorted(DXCC_PREFIXES.keys(), key=len, reverse=True)
-    
+
     for prefix in sorted_prefixes:
         if base_call.startswith(prefix):
             return DXCC_PREFIXES[prefix]
-    
+
     return None
 
 
-def calculate_dx_awards(qsos: Sequence[QSO], members: Sequence[Member], home_country: str = "United States") -> List[DXAward]:
+def calculate_dx_awards(
+    qsos: Sequence[QSO],
+    members: Sequence[Member],
+    home_country: str = "United States",
+) -> List[DXAward]:
     """
-    Calculate SKCC DX Award progress for both DXQ (QSO-based) and DXC (Country-based).
-    
+    Calculate SKCC DX Award progress for both DXQ (QSO-based)
+    and DXC (Country-based).
+
     Rules:
     - DXQ: Count unique QSOs with SKCC members from different countries
     - DXC: Count unique DXCC countries worked (one per country)
@@ -1170,52 +1573,53 @@ def calculate_dx_awards(qsos: Sequence[QSO], members: Sequence[Member], home_cou
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track DX QSOs and countries
     dxq_contacts = []  # List of (country, member_number, is_qrp) tuples
     dxc_countries = set()  # Set of unique countries
-    
+
     # Track QRP separately
     dxq_qrp_contacts = []
     dxc_qrp_countries = set()
-    
+
     for qso in qsos:
         if not qso.call:
             continue
-            
+
         # Must be SKCC member
         normalized_call = normalize_call(qso.call) if qso.call else ""
         member = member_by_call.get(normalized_call or "")
         if not member:
             continue
-            
+
         # Get country from call sign
         country = get_dxcc_country(qso.call)
         if not country or country == home_country:
             continue  # Skip same country or unrecognized
-            
+
         # Date validation
         if qso.date:
             qso_date = qso.date
-            
+
             # DXQ valid after June 14, 2009 (20090614)
             # DXC valid after December 19, 2009 (20091219)
             if qso_date < "20090614":
                 continue  # Before any DX award start date
-        
+
         # Check if QRP (5W or less)
         is_qrp = False
-        if hasattr(qso, 'tx_pwr') and qso.tx_pwr:
+        if hasattr(qso, "tx_pwr") and qso.tx_pwr:
             try:
                 power = float(qso.tx_pwr)
                 is_qrp = power <= 5.0
             except (ValueError, TypeError):
                 pass
         # Also check for QRP indicator in comment or mode
-        if (hasattr(qso, 'comment') and qso.comment and 'QRP' in qso.comment.upper()) or \
-           (qso.mode and 'QRP' in qso.mode.upper()):
+        if (
+            hasattr(qso, "comment") and qso.comment and "QRP" in qso.comment.upper()
+        ) or (qso.mode and "QRP" in qso.mode.upper()):
             is_qrp = True
-            
+
         # For DXQ: track individual QSOs (country, member number)
         if qso.date and qso.date >= "20090614":
             contact_key = (country, member.number)
@@ -1223,140 +1627,150 @@ def calculate_dx_awards(qsos: Sequence[QSO], members: Sequence[Member], home_cou
                 dxq_contacts.append((country, member.number, is_qrp))
                 if is_qrp:
                     dxq_qrp_contacts.append((country, member.number, is_qrp))
-        
+
         # For DXC: track unique countries
         if qso.date and qso.date >= "20091219":
             dxc_countries.add(country)
             if is_qrp:
                 dxc_qrp_countries.add(country)
-    
+
     awards = []
-    
+
     # DXQ Awards (QSO-based)
     dxq_count = len(dxq_contacts)
     dxq_qrp_count = len(dxq_qrp_contacts)
     dxq_countries = list(set(contact[0] for contact in dxq_contacts))
     dxq_qrp_countries = list(set(contact[0] for contact in dxq_qrp_contacts))
-    
+
     for threshold in DX_AWARD_THRESHOLDS:
         # Regular DXQ award
-        awards.append(DXAward(
-            name=f"DXQ-{threshold}",
-            award_type="DXQ",
-            threshold=threshold,
-            current_count=dxq_count,
-            achieved=dxq_count >= threshold,
-            countries_worked=dxq_countries,
-            qrp_qualified=False,
-            start_date="20090614"
-        ))
-        
+        awards.append(
+            DXAward(
+                name=f"DXQ-{threshold}",
+                award_type="DXQ",
+                threshold=threshold,
+                current_count=dxq_count,
+                achieved=dxq_count >= threshold,
+                countries_worked=dxq_countries,
+                qrp_qualified=False,
+                start_date="20090614",
+            )
+        )
+
         # QRP DXQ award
-        awards.append(DXAward(
-            name=f"DXQ-{threshold} QRP",
-            award_type="DXQ",
-            threshold=threshold,
-            current_count=dxq_qrp_count,
-            achieved=dxq_qrp_count >= threshold,
-            countries_worked=dxq_qrp_countries,
-            qrp_qualified=True,
-            start_date="20090614"
-        ))
-    
+        awards.append(
+            DXAward(
+                name=f"DXQ-{threshold} QRP",
+                award_type="DXQ",
+                threshold=threshold,
+                current_count=dxq_qrp_count,
+                achieved=dxq_qrp_count >= threshold,
+                countries_worked=dxq_qrp_countries,
+                qrp_qualified=True,
+                start_date="20090614",
+            )
+        )
+
     # DXC Awards (Country-based)
     dxc_count = len(dxc_countries)
     dxc_qrp_count = len(dxc_qrp_countries)
-    
+
     for threshold in DX_AWARD_THRESHOLDS:
         # Regular DXC award
-        awards.append(DXAward(
-            name=f"DXC-{threshold}",
-            award_type="DXC",
-            threshold=threshold,
-            current_count=dxc_count,
-            achieved=dxc_count >= threshold,
-            countries_worked=sorted(list(dxc_countries)),
-            qrp_qualified=False,
-            start_date="20091219"
-        ))
-        
+        awards.append(
+            DXAward(
+                name=f"DXC-{threshold}",
+                award_type="DXC",
+                threshold=threshold,
+                current_count=dxc_count,
+                achieved=dxc_count >= threshold,
+                countries_worked=sorted(list(dxc_countries)),
+                qrp_qualified=False,
+                start_date="20091219",
+            )
+        )
+
         # QRP DXC award
-        awards.append(DXAward(
-            name=f"DXC-{threshold} QRP",
-            award_type="DXC",
-            threshold=threshold,
-            current_count=dxc_qrp_count,
-            achieved=dxc_qrp_count >= threshold,
-            countries_worked=sorted(list(dxc_qrp_countries)),
-            qrp_qualified=True,
-            start_date="20091219"
-        ))
-    
+        awards.append(
+            DXAward(
+                name=f"DXC-{threshold} QRP",
+                award_type="DXC",
+                threshold=threshold,
+                current_count=dxc_qrp_count,
+                achieved=dxc_qrp_count >= threshold,
+                countries_worked=sorted(list(dxc_qrp_countries)),
+                qrp_qualified=True,
+                start_date="20091219",
+            )
+        )
+
     return awards
 
 
 def extract_prefix(call: str) -> str | None:
     """
     Extract call sign prefix according to SKCC PFX Award rules.
-    
-    The prefix consists of letters and numbers up to and including 
+
+    The prefix consists of letters and numbers up to and including
     the last number on the left part of the call sign.
     Prefixes and suffixes separated by "/" are ignored.
-    
+
     Examples:
     - AC2C -> AC2
-    - N6WK -> N6  
+    - N6WK -> N6
     - DU3/W5LFA -> W5
     - 2D0YLX -> 2D0
     - S51AF -> S51
     - K5ZMD/7 -> K5
     - W4/IB4DX -> IB4
-    
+
     Args:
         call: Amateur radio call sign
-        
+
     Returns:
         Prefix string or None if invalid
     """
     if not call:
         return None
-    
+
     call = call.upper().strip()
-    
+
     # Remove portable indicators (keep base call)
-    base_call = call.split('/')[0]
-    
+    base_call = call.split("/")[0]
+
     # Handle special case like W4/IB4DX where prefix is after the /
-    if '/' in call:
-        parts = call.split('/')
+    if "/" in call:
+        parts = call.split("/")
         if len(parts) >= 2:
             # If the first part looks like a location (W4, VE7, etc.) and second is the call
             first_part = parts[0]
             second_part = parts[1]
-            
+
             # Check if first part is a simple area designation (2-3 chars with digit)
             if len(first_part) <= 3 and any(c.isdigit() for c in first_part):
                 base_call = second_part  # Use the part after /
-    
+
     # Find the last digit in the base call
     last_digit_pos = -1
     for i, char in enumerate(base_call):
         if char.isdigit():
             last_digit_pos = i
-    
+
     if last_digit_pos == -1:
         return None  # No digit found, invalid call
-    
+
     # Prefix is everything up to and including the last digit
-    prefix = base_call[:last_digit_pos + 1]
-    
+    prefix = base_call[: last_digit_pos + 1]
+
     return prefix if prefix else None
 
 
-def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[PFXAward]:
+def calculate_pfx_awards(
+    qsos: Sequence[QSO], members: Sequence[Member]
+) -> List[PFXAward]:
     """
     Calculate SKCC PFX Award progress based on unique prefixes and SKCC number sums.
-    
+
     Rules:
     - Collect unique call sign prefixes from SKCC member contacts
     - Score = sum of SKCC numbers for each unique prefix
@@ -1371,38 +1785,38 @@ def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track prefixes and their associated SKCC numbers
     prefix_scores = {}  # prefix -> set of SKCC numbers worked
     prefix_scores_by_band = {}  # band -> {prefix -> set of SKCC numbers}
-    
+
     for qso in qsos:
         if not qso.call or not qso.band:
             continue
-            
+
         # Must be SKCC member
         normalized_call = normalize_call(qso.call) if qso.call else ""
         member = member_by_call.get(normalized_call or "")
         if not member:
             continue
-            
+
         # Date validation - only contacts after Jan 1, 2013
         if qso.date and qso.date < "20130101":
             continue
-            
+
         # Extract prefix
         prefix = extract_prefix(qso.call)
         if not prefix:
             continue
-            
+
         # Get member number
         member_number = member.number
-        
+
         # Track for overall award
         if prefix not in prefix_scores:
             prefix_scores[prefix] = set()
         prefix_scores[prefix].add(member_number)
-        
+
         # Track by band for endorsements
         band = qso.band.upper()
         if band not in prefix_scores_by_band:
@@ -1410,14 +1824,14 @@ def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
         if prefix not in prefix_scores_by_band[band]:
             prefix_scores_by_band[band][prefix] = set()
         prefix_scores_by_band[band][prefix].add(member_number)
-    
+
     awards = []
-    
+
     # Calculate overall PFX awards
     total_score = sum(max(numbers) for numbers in prefix_scores.values())
     unique_prefixes = len(prefix_scores)
     prefixes_worked = sorted(list(prefix_scores.keys()))
-    
+
     # Define PFX award levels
     pfx_levels = []
     # Px1 through Px10 (every 500,000)
@@ -1426,52 +1840,60 @@ def calculate_pfx_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
     # Beyond Px10: increments of 5
     for i in range(15, 101, 5):  # Px15, Px20, Px25, ... Px100
         pfx_levels.append((i, i * 500000))
-    
+
     for level, threshold in pfx_levels:
-        awards.append(PFXAward(
-            name=f"PFX Px{level}",
-            level=level,
-            threshold=threshold,
-            current_score=total_score,
-            achieved=total_score >= threshold,
-            unique_prefixes=unique_prefixes,
-            prefixes_worked=prefixes_worked,
-            band=None
-        ))
-    
+        awards.append(
+            PFXAward(
+                name=f"PFX Px{level}",
+                level=level,
+                threshold=threshold,
+                current_score=total_score,
+                achieved=total_score >= threshold,
+                unique_prefixes=unique_prefixes,
+                prefixes_worked=prefixes_worked,
+                band=None,
+            )
+        )
+
     # Calculate band endorsements for each achieved level
     for band, band_prefixes in prefix_scores_by_band.items():
         if not band_prefixes:
             continue
-            
+
         band_score = sum(max(numbers) for numbers in band_prefixes.values())
         band_unique_prefixes = len(band_prefixes)
         band_prefixes_worked = sorted(list(band_prefixes.keys()))
-        
+
         for level, threshold in pfx_levels:
             # Only create band endorsements for levels that are achieved overall
             overall_achieved = total_score >= threshold
             band_achieved = band_score >= threshold
-            
-            if overall_achieved or band_achieved:  # Show if either overall or band is achieved
-                awards.append(PFXAward(
-                    name=f"PFX Px{level}",
-                    level=level,
-                    threshold=threshold,
-                    current_score=band_score,
-                    achieved=band_achieved,
-                    unique_prefixes=band_unique_prefixes,
-                    prefixes_worked=band_prefixes_worked,
-                    band=band
-                ))
-    
+
+            if (
+                overall_achieved or band_achieved
+            ):  # Show if either overall or band is achieved
+                awards.append(
+                    PFXAward(
+                        name=f"PFX Px{level}",
+                        level=level,
+                        threshold=threshold,
+                        current_score=band_score,
+                        achieved=band_achieved,
+                        unique_prefixes=band_unique_prefixes,
+                        prefixes_worked=band_prefixes_worked,
+                        band=band,
+                    )
+                )
+
     return awards
 
 
-def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[TripleKeyAward]:
+def calculate_triple_key_awards(
+    qsos: Sequence[QSO], members: Sequence[Member]
+) -> List[TripleKeyAward]:
     """
     Calculate SKCC Triple Key Award progress.
-    
+
     Rules:
     - Contact 300 different SKCC members total across three key type categories:
       - 100 using SK (Straight Key)
@@ -1483,38 +1905,33 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
     - Each member can only count once per key type category
     """
     from datetime import date
+
     # Build member lookup with all aliases
     member_by_call = {}
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track unique members worked with each key type
     straight_key_members = set()  # Unique SKCC member calls
     bug_members = set()
     sideswiper_members = set()
-    
+
     # Define key type mappings - comprehensive SKCC key type detection
-    STRAIGHT_KEY_TYPES = {
-        "SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY"
-    }
-    BUG_TYPES = {
-        "BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC"
-    }
-    SIDESWIPER_TYPES = {
-        "SIDESWIPER", "SIDE SWIPER", "COOTIE", "SS", "SWIPER"
-    }
-    
+    STRAIGHT_KEY_TYPES = {"SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY"}
+    BUG_TYPES = {"BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC"}
+    SIDESWIPER_TYPES = {"SIDESWIPER", "SIDE SWIPER", "COOTIE", "SS", "SWIPER"}
+
     for qso in qsos:
         if not qso.call:
             continue
-            
+
         # Must be SKCC member
         normalized_call = normalize_call(qso.call)
         member = member_by_call.get(normalized_call)
         if not member:
             continue
-            
+
         # Valid after November 10, 2018
         if qso.date:
             if isinstance(qso.date, date):
@@ -1523,22 +1940,24 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
                 qso_date_str = str(qso.date).replace("-", "")
             if qso_date_str < "20181110":
                 continue
-            
+
         # Must have QSO date to verify member status
         if not qso.date:
             continue
-            
+
         # Check if member was valid at QSO time
         if member.join_date:
             if isinstance(qso.date, date) and isinstance(member.join_date, date):
                 if qso.date < member.join_date:
                     continue
-            elif str(qso.date).replace("-", "") < str(member.join_date).replace("-", ""):
+            elif str(qso.date).replace("-", "") < str(member.join_date).replace(
+                "-", ""
+            ):
                 continue
-            
+
         # Extract key type from various possible fields
         key_type = None
-        
+
         # Check comment field for key type
         if qso.comment:
             comment_upper = qso.comment.upper().strip()
@@ -1548,7 +1967,7 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
                 key_type = "bug"
             elif any(kt in comment_upper for kt in SIDESWIPER_TYPES):
                 key_type = "sideswiper"
-                
+
         # Check dedicated key type field if available
         if not key_type and qso.key_type:
             key_upper = qso.key_type.upper().strip()
@@ -1558,7 +1977,7 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
                 key_type = "bug"
             elif any(kt in key_upper for kt in SIDESWIPER_TYPES):
                 key_type = "sideswiper"
-        
+
         # Add to appropriate set if key type identified
         if key_type == "straight":
             straight_key_members.add(normalized_call)
@@ -1566,67 +1985,79 @@ def calculate_triple_key_awards(qsos: Sequence[QSO], members: Sequence[Member]) 
             bug_members.add(normalized_call)
         elif key_type == "sideswiper":
             sideswiper_members.add(normalized_call)
-    
+
     # Create award objects
     awards = []
-    
+
     # Straight Key Award
     sk_count = len(straight_key_members)
-    awards.append(TripleKeyAward(
-        name="SK (Straight Key)",
-        key_type="straight",
-        threshold=100,
-        current_count=sk_count,
-        achieved=sk_count >= 100,
-        members_worked=sorted(list(straight_key_members)),
-        percentage=(sk_count / 100.0) * 100
-    ))
-    
+    awards.append(
+        TripleKeyAward(
+            name="SK (Straight Key)",
+            key_type="straight",
+            threshold=100,
+            current_count=sk_count,
+            achieved=sk_count >= 100,
+            members_worked=sorted(list(straight_key_members)),
+            percentage=(sk_count / 100.0) * 100,
+        )
+    )
+
     # Bug Award
     bug_count = len(bug_members)
-    awards.append(TripleKeyAward(
-        name="Bug",
-        key_type="bug",
-        threshold=100,
-        current_count=bug_count,
-        achieved=bug_count >= 100,
-        members_worked=sorted(list(bug_members)),
-        percentage=(bug_count / 100.0) * 100
-    ))
-    
+    awards.append(
+        TripleKeyAward(
+            name="Bug",
+            key_type="bug",
+            threshold=100,
+            current_count=bug_count,
+            achieved=bug_count >= 100,
+            members_worked=sorted(list(bug_members)),
+            percentage=(bug_count / 100.0) * 100,
+        )
+    )
+
     # Side Swiper (Cootie) Award
     ss_count = len(sideswiper_members)
-    awards.append(TripleKeyAward(
-        name="Side Swiper (Cootie)",
-        key_type="sideswiper",
-        threshold=100,
-        current_count=ss_count,
-        achieved=ss_count >= 100,
-        members_worked=sorted(list(sideswiper_members)),
-        percentage=(ss_count / 100.0) * 100
-    ))
-    
+    awards.append(
+        TripleKeyAward(
+            name="Side Swiper (Cootie)",
+            key_type="sideswiper",
+            threshold=100,
+            current_count=ss_count,
+            achieved=ss_count >= 100,
+            members_worked=sorted(list(sideswiper_members)),
+            percentage=(ss_count / 100.0) * 100,
+        )
+    )
+
     # Overall Triple Key Award (requires all three components)
     all_achieved = sk_count >= 100 and bug_count >= 100 and ss_count >= 100
     total_unique = len(straight_key_members | bug_members | sideswiper_members)
-    
-    awards.append(TripleKeyAward(
-        name="Triple Key Award (All 3 Types)",
-        key_type="overall",
-        threshold=300,
-        current_count=total_unique,
-        achieved=all_achieved,
-        members_worked=sorted(list(straight_key_members | bug_members | sideswiper_members)),
-        percentage=(total_unique / 300.0) * 100
-    ))
-    
+
+    awards.append(
+        TripleKeyAward(
+            name="Triple Key Award (All 3 Types)",
+            key_type="overall",
+            threshold=300,
+            current_count=total_unique,
+            achieved=all_achieved,
+            members_worked=sorted(
+                list(straight_key_members | bug_members | sideswiper_members)
+            ),
+            percentage=(total_unique / 300.0) * 100,
+        )
+    )
+
     return awards
 
 
-def calculate_rag_chew_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[RagChewAward]:
+def calculate_rag_chew_awards(
+    qsos: Sequence[QSO], members: Sequence[Member]
+) -> List[RagChewAward]:
     """
     Calculate SKCC Rag Chew Award progress.
-    
+
     Rules:
     - 30+ minute QSOs with SKCC members count as rag chews
     - 40+ minutes if more than two stations participate
@@ -1642,59 +2073,59 @@ def calculate_rag_chew_awards(qsos: Sequence[QSO], members: Sequence[Member]) ->
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track rag chew minutes by band and overall
     total_minutes_overall = 0
     total_qsos_overall = 0
     minutes_by_band = {}  # band -> total minutes
-    qsos_by_band = {}     # band -> QSO count
-    
+    qsos_by_band = {}  # band -> QSO count
+
     # Track last contact with each call to prevent back-to-back QSOs
     last_contact_by_call = {}  # call -> datetime
     valid_qsos = []
-    
+
     for qso in qsos:
         if not qso.call or not qso.duration_minutes:
             continue
-            
+
         # Must be SKCC member
         normalized_call = normalize_call(qso.call)
         member = member_by_call.get(normalized_call)
         if not member:
             continue
-            
+
         # Valid after July 1, 2013
         if qso.date and qso.date < "20130701":
             continue
-            
+
         # Must have QSO date to verify member status
         if not qso.date:
             continue
-            
+
         # Check if member was valid at QSO time
         if member.join_date and qso.date < member.join_date:
             continue
-            
+
         # Minimum 30 minutes for rag chew (40 if multi-station)
         min_duration = 30
         # Note: We don't have multi-station detection, so using 30 minutes
         if qso.duration_minutes < min_duration:
             continue
-            
+
         # Check for back-to-back contacts with same station
         qso_datetime = qso.date + (qso.time_on or "0000")
         if normalized_call in last_contact_by_call:
             # For simplicity, we'll allow if there's at least one other contact in between
             # This is a simplified implementation of the back-to-back rule
             pass
-        
+
         last_contact_by_call[normalized_call] = qso_datetime
-        
+
         # Valid rag chew - add to totals
         total_minutes_overall += qso.duration_minutes
         total_qsos_overall += 1
         valid_qsos.append(qso)
-        
+
         # Track by band
         band = qso.band or "Unknown"
         if band not in minutes_by_band:
@@ -1702,66 +2133,78 @@ def calculate_rag_chew_awards(qsos: Sequence[QSO], members: Sequence[Member]) ->
             qsos_by_band[band] = 0
         minutes_by_band[band] += qso.duration_minutes
         qsos_by_band[band] += 1
-    
+
     awards = []
-    
+
     # Overall Rag Chew Awards (RC1, RC2, RC3, ...)
     for level in range(1, 11):  # RC1 through RC10
         threshold = level * 300  # 300, 600, 900, ..., 3000
         achieved = total_minutes_overall >= threshold
-        awards.append(RagChewAward(
-            name=f"Rag Chew RC{level}",
-            level=level,
-            threshold=threshold,
-            current_minutes=total_minutes_overall,
-            achieved=achieved,
-            qso_count=total_qsos_overall,
-            band=None
-        ))
-    
-    # Extended levels beyond RC10 (RC15, RC20, RC25, etc.)
-    for level in [15, 20, 25, 30, 35, 40, 45, 50]:
-        threshold = level * 300
-        if total_minutes_overall >= threshold // 2:  # Only show if we're at least halfway there
-            achieved = total_minutes_overall >= threshold
-            awards.append(RagChewAward(
+        awards.append(
+            RagChewAward(
                 name=f"Rag Chew RC{level}",
                 level=level,
                 threshold=threshold,
                 current_minutes=total_minutes_overall,
                 achieved=achieved,
                 qso_count=total_qsos_overall,
-                band=None
-            ))
-    
+                band=None,
+            )
+        )
+
+    # Extended levels beyond RC10 (RC15, RC20, RC25, etc.)
+    for level in [15, 20, 25, 30, 35, 40, 45, 50]:
+        threshold = level * 300
+        if (
+            total_minutes_overall >= threshold // 2
+        ):  # Only show if we're at least halfway there
+            achieved = total_minutes_overall >= threshold
+            awards.append(
+                RagChewAward(
+                    name=f"Rag Chew RC{level}",
+                    level=level,
+                    threshold=threshold,
+                    current_minutes=total_minutes_overall,
+                    achieved=achieved,
+                    qso_count=total_qsos_overall,
+                    band=None,
+                )
+            )
+
     # Band endorsements (300 minutes per band)
     STANDARD_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
     for band in STANDARD_BANDS:
         band_minutes = minutes_by_band.get(band, 0)
         band_qsos = qsos_by_band.get(band, 0)
-        
+
         if band_minutes > 0:  # Only include bands with activity
             for level in range(1, 11):  # Band endorsements RC1-RC10
                 threshold = level * 300
                 achieved = band_minutes >= threshold
-                if band_minutes >= threshold // 2 or achieved:  # Show if halfway there or achieved
-                    awards.append(RagChewAward(
-                        name=f"Rag Chew RC{level}",
-                        level=level,
-                        threshold=threshold,
-                        current_minutes=band_minutes,
-                        achieved=achieved,
-                        qso_count=band_qsos,
-                        band=band
-                    ))
-    
+                if (
+                    band_minutes >= threshold // 2 or achieved
+                ):  # Show if halfway there or achieved
+                    awards.append(
+                        RagChewAward(
+                            name=f"Rag Chew RC{level}",
+                            level=level,
+                            threshold=threshold,
+                            current_minutes=band_minutes,
+                            achieved=achieved,
+                            qso_count=band_qsos,
+                            band=band,
+                        )
+                    )
+
     return awards
 
 
-def calculate_wac_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List[WACAward]:
+def calculate_wac_awards(
+    qsos: Sequence[QSO], members: Sequence[Member]
+) -> List[WACAward]:
     """
     Calculate SKCC Worked All Continents (WAC) Award progress.
-    
+
     Rules:
     - Work all 6 continents: NA, SA, EU, AF, AS, OC (Antarctica AN not required)
     - Valid after October 9, 2011
@@ -1775,52 +2218,52 @@ def calculate_wac_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
     for member in members:
         for alias in generate_call_aliases(member.call):
             member_by_call.setdefault(alias, member)
-    
+
     # Track continents worked overall and by band
     continents_overall = set()
     qrp_continents_overall = set()
     continents_by_band = {}  # band -> set of continents
     qrp_continents_by_band = {}  # band -> set of continents for QRP
-    
+
     # Valid key types for WAC award
     VALID_KEY_TYPES = {"SK", "SIDE SWIPER", "COOTIE", "BUG"}
-    
+
     for qso in qsos:
         if not qso.call:
             continue
-            
+
         # Must be SKCC member
         normalized_call = normalize_call(qso.call)
         member = member_by_call.get(normalized_call)
         if not member:
             continue
-            
+
         # Valid after October 9, 2011
         if qso.date and qso.date < "20111009":
             continue
-            
+
         # Must have QSO date to verify member status
         if not qso.date:
             continue
-            
+
         # Check if member was valid at QSO time
         if member.join_date and qso.date < member.join_date:
             continue
-            
+
         # Check key type (if provided and key type enforcement is desired)
         # For simplicity, we'll accept all QSOs but note the key type requirement
         key_type = qso.key_type or ""
-        valid_key = not key_type or key_type.upper() in VALID_KEY_TYPES
-        
+        _ = key_type.upper() in VALID_KEY_TYPES if key_type else True
+
         # Get continent from call sign
         continent = get_continent_from_call(qso.call)
         if not continent:
             continue
-            
+
         # Only count the main 6 continents (exclude Antarctica)
         if continent not in ["NA", "SA", "EU", "AF", "AS", "OC"]:
             continue
-            
+
         # Check if QRP (5W or less)
         is_qrp = False
         if qso.tx_pwr:
@@ -1829,80 +2272,98 @@ def calculate_wac_awards(qsos: Sequence[QSO], members: Sequence[Member]) -> List
                 is_qrp = power_watts <= 5
             except (ValueError, TypeError):
                 is_qrp = False
-        
+
         # Add to overall tracking
         continents_overall.add(continent)
         if is_qrp:
             qrp_continents_overall.add(continent)
-        
+
         # Track by band
         band = qso.band or "Unknown"
         if band not in continents_by_band:
             continents_by_band[band] = set()
             qrp_continents_by_band[band] = set()
-        
+
         continents_by_band[band].add(continent)
         if is_qrp:
             qrp_continents_by_band[band].add(continent)
-    
+
     awards = []
-    
+
     # Overall WAC Award
-    awards.append(WACAward(
-        name="Worked All Continents (WAC)",
-        award_type="WAC",
-        required_continents=6,
-        current_continents=len(continents_overall),
-        achieved=len(continents_overall) >= 6,
-        continents_worked=sorted(list(continents_overall)),
-        qrp_qualified=False,
-        band=None
-    ))
-    
+    awards.append(
+        WACAward(
+            name="Worked All Continents (WAC)",
+            award_type="WAC",
+            required_continents=6,
+            current_continents=len(continents_overall),
+            achieved=len(continents_overall) >= 6,
+            continents_worked=sorted(list(continents_overall)),
+            qrp_qualified=False,
+            band=None,
+        )
+    )
+
     # Overall WAC-QRP Award
-    awards.append(WACAward(
-        name="Worked All Continents QRP (WAC-QRP)",
-        award_type="WAC-QRP", 
-        required_continents=6,
-        current_continents=len(qrp_continents_overall),
-        achieved=len(qrp_continents_overall) >= 6,
-        continents_worked=sorted(list(qrp_continents_overall)),
-        qrp_qualified=True,
-        band=None
-    ))
-    
+    awards.append(
+        WACAward(
+            name="Worked All Continents QRP (WAC-QRP)",
+            award_type="WAC-QRP",
+            required_continents=6,
+            current_continents=len(qrp_continents_overall),
+            achieved=len(qrp_continents_overall) >= 6,
+            continents_worked=sorted(list(qrp_continents_overall)),
+            qrp_qualified=True,
+            band=None,
+        )
+    )
+
     # Band endorsements
-    STANDARD_BANDS = ["160M", "80M", "40M", "30M", "20M", "17M", "15M", "12M", "10M"]
+    STANDARD_BANDS = [
+        "160M",
+        "80M",
+        "40M",
+        "30M",
+        "20M",
+        "17M",
+        "15M",
+        "12M",
+        "10M",
+    ]
     for band in STANDARD_BANDS:
         band_continents = continents_by_band.get(band, set())
         qrp_band_continents = qrp_continents_by_band.get(band, set())
-        
+
         if len(band_continents) > 0:  # Only include bands with activity
             # Regular band endorsement
-            awards.append(WACAward(
-                name=f"WAC {band} Band",
-                award_type=f"WAC-{band}",
-                required_continents=6,
-                current_continents=len(band_continents),
-                achieved=len(band_continents) >= 6,
-                continents_worked=sorted(list(band_continents)),
-                qrp_qualified=False,
-                band=band
-            ))
-            
+            awards.append(
+                WACAward(
+                    name=f"WAC {band} Band",
+                    award_type=f"WAC-{band}",
+                    required_continents=6,
+                    current_continents=len(band_continents),
+                    achieved=len(band_continents) >= 6,
+                    continents_worked=sorted(list(band_continents)),
+                    qrp_qualified=False,
+                    band=band,
+                )
+            )
+
             # QRP band endorsement (if any QRP contacts on this band)
             if len(qrp_band_continents) > 0:
-                awards.append(WACAward(
-                    name=f"WAC {band} Band QRP",
-                    award_type=f"WAC-{band}-QRP",
-                    required_continents=6,
-                    current_continents=len(qrp_band_continents),
-                    achieved=len(qrp_band_continents) >= 6,
-                    continents_worked=sorted(list(qrp_band_continents)),
-                    qrp_qualified=True,
-                    band=band
-                ))
-    
+                awards.append(
+                    WACAward(
+                        name=f"WAC {band} Band QRP",
+                        award_type=f"WAC-{band}-QRP",
+                        required_continents=6,
+                        current_continents=len(qrp_band_continents),
+                        achieved=len(qrp_band_continents) >= 6,
+                        continents_worked=sorted(list(qrp_band_continents)),
+                        qrp_qualified=True,
+                        band=band,
+                    )
+                )
+
     return awards
 
 
@@ -1918,52 +2379,72 @@ def calculate_awards(
 ) -> AwardCheckResult:
     """Calculate award progress plus (optionally) band endorsements.
 
-    SKCC is exclusively for Morse code (CW) operations - all QSOs are assumed to be CW.
+    SKCC is exclusively for Morse code (CW) operations - all QSOs are assumed CW.
 
-    thresholds: optional override list of (name, required). Defaults to AWARD_THRESHOLDS.
+    thresholds: optional override list of (name, required).
+    Defaults to AWARD_THRESHOLDS.
     Endorsements: For each award threshold, if unique member count on a band
     meets that threshold, an endorsement record is produced.
-    
+
     Implements SKCC Award rules:
-      - Centurion Rule #2: Excludes special event / club calls (K9SKC, K3Y*) on/after 20091201.
-      - Centurion Rule #3: Requires both parties be members at QSO date if join dates provided.
-      - Centurion Rule #4: Counts only unique call signs (each operator only counted once).
-      - Tribune Rule #1: For Tribune (50+), only count QSOs with Centurions/Tribunes/Senators (C/T/S suffix).
-      - Tribune Rule #2: Both parties must be Centurions at time of QSO for Tribune+ awards.
-      - Tribune Endorsements: TxN requires N×50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
-      - Tribune Higher Endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc. (increments of 250)
-      - Senator Endorsements: SxN requires N×200 T/S QSOs (Sx2=400, Sx3=600, ..., Sx10=2000)
-      - Senator Prerequisite: Tribune x8 (400 C/T/S contacts) + 200 separate T/S contacts
-      - Rule #6: Optionally enforces key type validation (straight key/bug/cootie).
-    
+            - Centurion Rule #2: Excludes special event / club calls (K9SKC, K3Y*)
+                on/after 20091201.
+            - Centurion Rule #3: Requires both parties be members at QSO date if
+                join dates provided.
+            - Centurion Rule #4: Counts only unique call signs (each operator only
+                counted once).
+            - Tribune Rule #1: For Tribune (50+), only count QSOs with Centurions /
+                Tribunes / Senators (C/T/S suffix).
+            - Tribune Rule #2: Both parties must be Centurions at time of QSO for
+                Tribune+ awards.
+            - Tribune Endorsements: TxN requires N×50 QSOs (Tx2=100, Tx3=150, ...,
+                Tx10=500)
+            - Tribune Higher Endorsements: Tx15=750, Tx20=1000, Tx25=1250, etc.
+                (increments of 250)
+            - Senator Endorsements: SxN requires N×200 T/S QSOs (Sx2=400, Sx3=600,
+                ..., Sx10=2000)
+            - Senator Prerequisite: Tribune x8 (400 C/T/S contacts) + 200 separate
+                T/S contacts
+            - Rule #6: Optionally enforces key type validation (straight key/bug/
+                cootie).
+
     Parameters:
         enforce_suffix_rules: if True, enforces SKCC suffix requirements for Tribune/Senator awards
     """
     use_thresholds = list(thresholds) if thresholds else AWARD_THRESHOLDS
 
-    def member_qualifies_for_award_at_qso_time_inner(member: Member | None, award_threshold: int, qso: QSO) -> bool:
+    def member_qualifies_for_award_at_qso_time_inner(
+        member: Member | None, award_threshold: int, qso: QSO
+    ) -> bool:
         """
-        Check if a member's suffix qualified them for counting toward a specific award AT THE TIME OF QSO.
-        
-        This uses the SKCC field from the QSO record, which contains the member's
-        award status AT THE TIME OF QSO - this is accurate historical data.
+        Check if a member's suffix qualified them for an award at QSO time.
+
+        Uses the SKCC field from the QSO record, which contains the member's
+        award status at the time of QSO. This is accurate historical data.
         """
         if not enforce_suffix_rules or not member:
             return True  # No suffix enforcement means count all members
-        
+
         # Centurion Award (100): Count all SKCC members (any suffix or no suffix)
         if award_threshold <= 100:
             return True
-        
+
         # For Tribune/Senator awards, get the member's status at QSO time from SKCC field
         qso_time_status = get_member_status_at_qso_time(qso, member)
-        
+
         # Tribune Award (50+): Only count members who were C/T/S at QSO time
         if award_threshold >= 1000:  # Senator
-            return qso_time_status in ['T', 'S']  # Only Tribunes/Senators count for Senator
+            return qso_time_status in [
+                "T",
+                "S",
+            ]  # Only Tribunes/Senators count for Senator
         elif award_threshold >= 50:  # Tribune (50 contacts)
-            return qso_time_status in ['C', 'T', 'S']  # Centurions/Tribunes/Senators count for Tribune
-        
+            return qso_time_status in [
+                "C",
+                "T",
+                "S",
+            ]  # Centurions/Tribunes/Senators count for Tribune
+
         return True
 
     # Allowed key device terms (normalized upper tokens). Accept synonyms.
@@ -1994,6 +2475,7 @@ def calculate_awards(
 
     # Pre-calc disallowed special event patterns
     SPECIAL_CUTOFF = "20091201"
+
     def is_disallowed_special(call: str | None, date: str | None) -> bool:
         if not call or not date:
             return False
@@ -2013,7 +2495,7 @@ def calculate_awards(
         # SKCC is exclusively CW/Morse code - exclude any non-CW modes (data cleanup)
         if q.mode and q.mode.upper() not in ["CW", "A1A"]:
             continue
-            
+
         # Exclude disallowed special calls (rule #2)
         if is_disallowed_special(q.call, q.date):
             continue
@@ -2047,7 +2529,9 @@ def calculate_awards(
                 if msk:
                     candidate = int(msk.group("num"))
                     if candidate in number_to_member:
-                        # If we have the member but call didn't match (e.g. portable variant we failed to normalize), ensure join date ok
+                        # If we have the member but call didn't match (e.g.,
+                        # portable variant we failed to normalize), ensure the
+                        # join date is OK
                         m2 = number_to_member[candidate]
                         if not (m2.join_date and q.date and q.date < m2.join_date):
                             numeric_id = candidate
@@ -2101,42 +2585,44 @@ def calculate_awards(
 
     # Award progress - implementing complete SKCC award rules with historical status consideration
     progresses: List[AwardProgress] = []
-    
-    # Centurion (100): All unique SKCC members count
+
+    # Centurion: All unique SKCC members count. Use dynamic threshold if provided.
+    cent_required = next(
+        (req for name, req in use_thresholds if name == "Centurion"), 100
+    )
     centurion_current = unique_count
-    centurion_achieved = centurion_current >= 100
-    progresses.append(AwardProgress(
-        name="Centurion",
-        required=100,
-        current=centurion_current,
-        achieved=centurion_achieved,
-        description="Contact 100 unique SKCC members"
-    ))
-    
+    centurion_achieved = centurion_current >= cent_required
+    progresses.append(
+        AwardProgress(
+            name="Centurion",
+            required=cent_required,
+            current=centurion_current,
+            achieved=centurion_achieved,
+            description="Contact 100 unique SKCC members",
+        )
+    )
+
     if enforce_suffix_rules:
         # For proper SKCC rules, we need to evaluate each member's status at QSO time
         # Track members who qualified for Tribune/Senator awards at the time of contact
         tribune_qualified_members = set()
         senator_qualified_members = set()
-        
+
         # Go through QSOs chronologically to determine qualification at QSO time
         # For Tribune award, BOTH parties must be Centurions at time of QSO
         for q in chronological:
             # Skip QSOs before you achieved Centurion (Tribune requires mutual qualification)
             if centurion_ts and q.date:
-                try:
-                    qso_timestamp = _qso_timestamp(q)
-                    if qso_timestamp < centurion_ts:
-                        continue  # You weren't qualified yet for Tribune
-                except:
-                    continue
+                qso_timestamp = _qso_timestamp(q)
+                if qso_timestamp < centurion_ts:
+                    continue  # You weren't qualified yet for Tribune
             elif centurion_ts is None:
                 # You haven't achieved Centurion yet, so no Tribune qualification possible
                 continue
-                
+
             member = member_by_call.get(q.call or "")
             numeric_id = None
-            
+
             if member:
                 if member.join_date and q.date and q.date < member.join_date:
                     continue
@@ -2151,58 +2637,73 @@ def calculate_awards(
                             continue
                         member = m2
                         numeric_id = candidate
-            
+
             if numeric_id is None or member is None:
                 continue
-            
+
             # Check if this member qualified for Tribune award at QSO time (50 contacts)
             if member_qualifies_for_award_at_qso_time_inner(member, 50, q):
                 tribune_qualified_members.add(numeric_id)
-            
+
             # Check if this member qualified for Senator award at QSO time
             if member_qualifies_for_award_at_qso_time_inner(member, 1000, q):
                 senator_qualified_members.add(numeric_id)
-        
+
         tribune_current = len(tribune_qualified_members)
         tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts
-        
+
         # Add all Tribune endorsement levels
         # TxN requires N times 50 QSOs total (cumulative from start, not reset)
         # Tx2=100 total, Tx3=150 total, etc.
         tribune_endorsements = []
-        
+
         if tribune_achieved:  # Only show endorsements if Tribune is achieved
             for n in range(2, 11):  # Tx2 through Tx10
                 required = n * 50
                 achieved = tribune_current >= required
-                tribune_endorsements.append(AwardProgress(
-                    name=f"Tx{n}",
-                    required=required,
-                    current=tribune_current,
-                    achieved=achieved,
-                    description=f"Tribune x{n} - Contact {required} unique C/T/S members total"
-                ))
-            
-            # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
-            # Tx15=750, Tx20=1000, Tx25=1250, etc.
-            for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
-                required = n * 50
-                if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
-                    achieved = tribune_current >= required
-                    tribune_endorsements.append(AwardProgress(
+                tribune_endorsements.append(
+                    AwardProgress(
                         name=f"Tx{n}",
                         required=required,
                         current=tribune_current,
                         achieved=achieved,
-                        description=f"Tribune x{n} - Contact {required} unique C/T/S members total"
-                    ))
-        
-        # Senator requires Tribune x8 (400 C/T/S qualified) PLUS 200 SEPARATE contacts with T/S at QSO time
+                        description=(
+                            f"Tribune x{n} - Contact {required} unique C/T/S "
+                            f"members total"
+                        ),
+                    )
+                )
+
+            # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+            # Tx15=750, Tx20=1000, Tx25=1250, etc.
+            for n in range(
+                15, 51, 5
+            ):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
+                required = n * 50
+                if (
+                    tribune_current >= required * 0.8
+                ):  # Only show if within 80% to avoid clutter
+                    achieved = tribune_current >= required
+                    tribune_endorsements.append(
+                        AwardProgress(
+                            name=f"Tx{n}",
+                            required=required,
+                            current=tribune_current,
+                            achieved=achieved,
+                            description=(
+                                f"Tribune x{n} - Contact {required} unique C/T/S "
+                                f"members total"
+                            ),
+                        )
+                    )
+
+        # Senator requires Tribune x8 (400 C/T/S qualified) PLUS 200 SEPARATE
+        # contacts with T/S at QSO time
         # Note: Senator contacts are INDEPENDENT of Tribune x8 contacts per SKCC rules
         senator_current = len(senator_qualified_members)
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
-        
+
         # Add Senator endorsement levels (SxN requires N times 200 T/S contacts total)
         # Senator contacts are separate/independent from Tribune x8 contacts
         senator_endorsements = []
@@ -2210,119 +2711,160 @@ def calculate_awards(
             for n in range(2, 11):  # Sx2 through Sx10
                 required = n * 200
                 achieved = senator_current >= required
-                senator_endorsements.append(AwardProgress(
-                    name=f"Sx{n}",
-                    required=required,
-                    current=senator_current,
-                    achieved=achieved,
-                    description=f"Senator x{n} - Contact {required} unique T/S members (separate from Tx8)"
-                ))
-        
-        progresses.append(AwardProgress(
-            name="Tribune",
-            required=50,
-            current=tribune_current,
-            achieved=tribune_achieved,
-            description="Contact 50 unique C/T/S members (both parties must be C+ at QSO time)"
-        ))
-        
+                senator_endorsements.append(
+                    AwardProgress(
+                        name=f"Sx{n}",
+                        required=required,
+                        current=senator_current,
+                        achieved=achieved,
+                        description=(
+                            f"Senator x{n} - Contact {required} unique T/S "
+                            f"members (separate from Tx8)"
+                        ),
+                    )
+                )
+
+        progresses.append(
+            AwardProgress(
+                name="Tribune",
+                required=50,
+                current=tribune_current,
+                achieved=tribune_achieved,
+                description="Contact 50 unique C/T/S members (both parties must be C+ at QSO time)",
+            )
+        )
+
         # Add all Tribune endorsement progress
         progresses.extend(tribune_endorsements)
-        
-        senator_desc = f"Tribune x8 (400 C/T/S) + 200 T/S members (separate contacts). Prerequisite: {'✓' if senator_prerequisite else '✗'}"
-        progresses.append(AwardProgress(
-            name="Senator",
-            required=200,
-            current=senator_current,
-            achieved=senator_achieved,
-            description=senator_desc
-        ))
-        
+
+        senator_desc = (
+            "Tribune x8 (400 C/T/S) + 200 T/S members (separate contacts). "
+            f"Prerequisite: {'✓' if senator_prerequisite else '✗'}"
+        )
+        progresses.append(
+            AwardProgress(
+                name="Senator",
+                required=200,
+                current=senator_current,
+                achieved=senator_achieved,
+                description=senator_desc,
+            )
+        )
+
         # Add Senator endorsement progress
         progresses.extend(senator_endorsements)
     else:
         # Legacy counting for backwards compatibility - uses current status
         centurion_plus_members = set()
         tribune_senator_members = set()  # T/S only for Senator award
-        
+
         for nid in all_unique_ids:
             member = number_to_member.get(nid)
             if member and member.suffix:
-                if member.suffix in ['C', 'T', 'S']:
+                if member.suffix in ["C", "T", "S"]:
                     centurion_plus_members.add(nid)
-                if member.suffix in ['T', 'S']:
+                if member.suffix in ["T", "S"]:
                     tribune_senator_members.add(nid)
-        
+
         tribune_current = len(centurion_plus_members)
-        tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts with C/T/S
-        
+        tribune_achieved = (
+            tribune_current >= 50
+        )  # Tribune requires 50 contacts with C/T/S
+
         # Add all Tribune endorsement levels (legacy mode)
         # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
         tribune_endorsements = []
         for n in range(2, 11):  # Tx2 through Tx10
             required = n * 50
             achieved = tribune_current >= required
-            tribune_endorsements.append(AwardProgress(
-                name=f"Tx{n}",
-                required=required,
-                current=tribune_current,
-                achieved=achieved,
-                description=f"Tribune x{n} - Contact {required} unique C/T/S members (legacy: current status)"
-            ))
-        
-        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
-        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
-            required = n * 50
-            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
-                achieved = tribune_current >= required
-                tribune_endorsements.append(AwardProgress(
+            tribune_endorsements.append(
+                AwardProgress(
                     name=f"Tx{n}",
                     required=required,
                     current=tribune_current,
                     achieved=achieved,
-                    description=f"Tribune x{n} - Contact {required} unique C/T/S members (legacy: current status)"
-                ))
-        
+                    description=(
+                        f"Tribune x{n} - Contact {required} unique C/T/S members "
+                        f"(legacy: current status)"
+                    ),
+                )
+            )
+
+        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
+            required = n * 50
+            if (
+                tribune_current >= required * 0.8
+            ):  # Only show if within 80% to avoid clutter
+                achieved = tribune_current >= required
+                tribune_endorsements.append(
+                    AwardProgress(
+                        name=f"Tx{n}",
+                        required=required,
+                        current=tribune_current,
+                        achieved=achieved,
+                        description=(
+                            f"Tribune x{n} - Contact {required} unique C/T/S members "
+                            f"(legacy: current status)"
+                        ),
+                    )
+                )
+
         # Senator requires Tribune x8 (400 C/T/S) PLUS 200 contacts with T/S only
         # Note: In legacy mode, counting T/S members by current status (not historical)
         senator_current = len(tribune_senator_members)
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
-        
+
         # Add Senator endorsement levels (legacy mode)
         senator_endorsements = []
         if senator_achieved:  # Only show endorsements if base Senator is achieved
             for n in range(2, 11):  # Sx2 through Sx10
                 required = n * 200
                 achieved = senator_current >= required
-                senator_endorsements.append(AwardProgress(
-                    name=f"Sx{n}",
-                    required=required,
-                    current=senator_current,
-                    achieved=achieved,
-                    description=f"Senator x{n} - Contact {required} unique T/S members (legacy: current status)"
-                ))
-        
-        progresses.append(AwardProgress(
-            name="Tribune",
-            required=50,
-            current=tribune_current,
-            achieved=tribune_achieved,
-            description="Contact 50 unique Centurions/Tribunes/Senators (legacy: current status)"
-        ))
-        
+                senator_endorsements.append(
+                    AwardProgress(
+                        name=f"Sx{n}",
+                        required=required,
+                        current=senator_current,
+                        achieved=achieved,
+                        description=(
+                            f"Senator x{n} - Contact {required} unique T/S members "
+                            f"(legacy: current status)"
+                        ),
+                    )
+                )
+
+        progresses.append(
+            AwardProgress(
+                name="Tribune",
+                required=50,
+                current=tribune_current,
+                achieved=tribune_achieved,
+                description=(
+                    "Contact 50 unique Centurions/Tribunes/Senators (legacy: "
+                    "current status)"
+                ),
+            )
+        )
+
         # Add all Tribune endorsement progress
         progresses.extend(tribune_endorsements)
-        
-        senator_desc = f"Tribune x8 + 200 Tribunes/Senators (legacy: current status). Prerequisite: {'✓' if senator_prerequisite else '✗'}"
-        progresses.append(AwardProgress(
-            name="Senator",
-            required=200,
-            current=senator_current,
-            achieved=senator_achieved,
-            description=senator_desc
-        ))
-        
+
+        senator_desc = (
+            "Tribune x8 + 200 Tribunes/Senators (legacy: current status). "
+            f"Prerequisite: {'✓' if senator_prerequisite else '✗'}"
+        )
+        progresses.append(
+            AwardProgress(
+                name="Senator",
+                required=200,
+                current=senator_current,
+                achieved=senator_achieved,
+                description=senator_desc,
+            )
+        )
+
         # Add Senator endorsement progress
         progresses.extend(senator_endorsements)
 
@@ -2359,7 +2901,7 @@ def calculate_awards(
 
     # Calculate Canadian Maple Awards
     canadian_maple_awards = calculate_canadian_maple_awards(filtered_qsos, members)
-    
+
     # Calculate DX Awards (detect home country from first QSO or default to US)
     home_country = "United States"  # Default
     if filtered_qsos:
@@ -2370,16 +2912,16 @@ def calculate_awards(
             if first_qso_country:
                 home_country = first_qso_country
     dx_awards = calculate_dx_awards(filtered_qsos, members, home_country)
-    
+
     # Calculate PFX Awards
     pfx_awards = calculate_pfx_awards(filtered_qsos, members)
-    
+
     # Calculate Triple Key Awards
     triple_key_awards = calculate_triple_key_awards(filtered_qsos, members)
-    
+
     # Calculate Rag Chew Awards
     rag_chew_awards = calculate_rag_chew_awards(filtered_qsos, members)
-    
+
     # Calculate WAC Awards
     wac_awards = calculate_wac_awards(filtered_qsos, members)
 
@@ -2404,13 +2946,13 @@ def calculate_awards(
 def extract_my_key(rec: dict[str, str]) -> str | None:
     """
     Extract normalized key type from ADIF record for Triple Key award calculation.
-    
+
     Args:
         rec: dict with uppercased ADIF tags -> values
-        
+
     Returns:
         'straight'|'bug'|'sideswiper' or None if not found
-        
+
     Priority: standard MY_MORSE_KEY_TYPE field, then APP_SKCCAC_KEY shadow field.
     """
     val = rec.get("MY_MORSE_KEY_TYPE")
@@ -2422,11 +2964,11 @@ def extract_my_key(rec: dict[str, str]) -> str | None:
             return "bug"
         if "side" in t or "cootie" in t:
             return "sideswiper"
-    
+
     val = rec.get("APP_SKCCAC_KEY")
     if val:
         v = val.strip().lower()
         if v in ("straight", "bug", "sideswiper"):
             return v
-    
+
     return None

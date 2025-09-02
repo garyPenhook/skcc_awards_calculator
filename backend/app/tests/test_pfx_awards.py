@@ -8,14 +8,13 @@ from pathlib import Path
 BACKEND_APP = Path(__file__).resolve().parent / "backend" / "app"
 sys.path.insert(0, str(BACKEND_APP))
 
-from services.skcc import (
-    QSO, Member, extract_prefix, calculate_pfx_awards
-)
+from services.skcc import QSO, Member, calculate_pfx_awards, extract_prefix
+
 
 def test_prefix_extraction():
     """Test call sign prefix extraction according to PFX rules."""
     print("Testing call sign prefix extraction:")
-    
+
     test_calls = [
         ("AC2C", "AC2"),
         ("N6WK", "N6"),
@@ -33,7 +32,7 @@ def test_prefix_extraction():
         ("", None),           # Empty
         ("INVALID", None),    # No digits
     ]
-    
+
     for call, expected in test_calls:
         result = extract_prefix(call)
         status = "✓" if result == expected else "✗"
@@ -42,12 +41,12 @@ def test_prefix_extraction():
 def test_pfx_awards_calculation():
     """Test PFX Awards calculation."""
     print("\nTesting PFX Awards calculation:")
-    
+
     # Create test QSOs with various prefixes and SKCC numbers
     qsos = [
         # Different prefixes with various SKCC numbers
         QSO(call="W1ABC", band="20M", mode="CW", date="20140101", skcc="1000"),      # W1, 1000 points
-        QSO(call="W2DEF", band="40M", mode="CW", date="20140102", skcc="2000"),     # W2, 2000 points  
+        QSO(call="W2DEF", band="40M", mode="CW", date="20140102", skcc="2000"),     # W2, 2000 points
         QSO(call="W3GHI", band="15M", mode="CW", date="20140103", skcc="3000"),     # W3, 3000 points
         QSO(call="W4JKL", band="20M", mode="CW", date="20140104", skcc="4000"),     # W4, 4000 points
         QSO(call="W5MNO", band="40M", mode="CW", date="20140105", skcc="5000"),     # W5, 5000 points
@@ -56,27 +55,27 @@ def test_pfx_awards_calculation():
         QSO(call="W8VWX", band="40M", mode="CW", date="20140108", skcc="8000"),     # W8, 8000 points
         QSO(call="W9YZA", band="20M", mode="CW", date="20140109", skcc="9000"),     # W9, 9000 points
         QSO(call="W0BCD", band="15M", mode="CW", date="20140110", skcc="10000"),    # W0, 10000 points
-        
+
         # Different call areas with same prefix (should use highest number)
         QSO(call="K1EFG", band="20M", mode="CW", date="20140201", skcc="15000"),    # K1, 15000 points
         QSO(call="K1HIJ", band="40M", mode="CW", date="20140202", skcc="12000"),    # K1, 12000 points (lower, won't count)
-        
+
         # International prefixes
         QSO(call="VE1KLM", band="20M", mode="CW", date="20140301", skcc="20000"),   # VE1, 20000 points
         QSO(call="G0NOP", band="40M", mode="CW", date="20140302", skcc="25000"),    # G0, 25000 points
         QSO(call="JA1QRS", band="15M", mode="CW", date="20140303", skcc="30000"),   # JA1, 30000 points
-        
+
         # Multiple contacts same prefix, different numbers
         QSO(call="N6TUV", band="20M", mode="CW", date="20140401", skcc="35000"),    # N6, 35000 points
         QSO(call="N6WXY", band="40M", mode="CW", date="20140402", skcc="40000"),    # N6, 40000 points (higher)
-        
+
         # Before start date (should be excluded)
         QSO(call="W1OLD", band="20M", mode="CW", date="20120601", skcc="50000"),    # Before 2013
-        
+
         # Non-SKCC member (should be excluded)
         QSO(call="W1NON", band="20M", mode="CW", date="20140501"),                  # No SKCC number
     ]
-    
+
     # Create test members
     members = [
         Member(call="W1ABC", number=1000),
@@ -98,29 +97,29 @@ def test_pfx_awards_calculation():
         Member(call="N6WXY", number=40000),
         Member(call="W1OLD", number=50000),
     ]
-    
+
     # Calculate awards
     awards = calculate_pfx_awards(qsos, members)
-    
+
     # Filter to show relevant awards
     relevant_awards = [a for a in awards if a.current_score > 0 or a.achieved]
-    
+
     print(f"  Found {len(relevant_awards)} PFX Awards with progress:")
-    
+
     # Calculate expected score manually for verification
     # Expected prefixes and their highest scores:
-    # W1: 1000, W2: 2000, W3: 3000, W4: 4000, W5: 5000, 
+    # W1: 1000, W2: 2000, W3: 3000, W4: 4000, W5: 5000,
     # W6: 6000, W7: 7000, W8: 8000, W9: 9000, W0: 10000,
     # K1: 15000, VE1: 20000, G0: 25000, JA1: 30000, N6: 40000
     # Total: 1000+2000+3000+4000+5000+6000+7000+8000+9000+10000+15000+20000+25000+30000+40000 = 185000
-    
+
     overall_awards = [a for a in relevant_awards if a.band is None]
     if overall_awards:
         first_award = overall_awards[0]
-        print(f"  Expected total score: 185,000")
+        print("  Expected total score: 185,000")
         print(f"  Actual total score: {first_award.current_score:,}")
         print(f"  Unique prefixes: {first_award.unique_prefixes}")
-    
+
     for award in relevant_awards[:10]:  # Show first 10 to avoid clutter
         status = "✓" if award.achieved else "○"
         band_text = f" on {award.band}" if award.band else ""

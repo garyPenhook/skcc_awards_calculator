@@ -1,7 +1,6 @@
-import pytest
 from app.services import skcc
 
-@pytest.mark.asyncio
+
 def test_key_type_enforcement_defaults() -> None:
     members = [
         skcc.Member(call="K1AAA", number=1, join_date="20240101"),
@@ -17,7 +16,6 @@ def test_key_type_enforcement_defaults() -> None:
     result = skcc.calculate_awards(qsos, members, thresholds=[("Centurion", 2)], enforce_key_type=True, treat_missing_key_as_valid=True)
     assert result.unique_members_worked == 3  # K1AAA,K1BBB (allowed) + K1CCC via missing key QSO
 
-@pytest.mark.asyncio
 def test_key_type_enforcement_strict_missing_not_allowed() -> None:
     members = [
         skcc.Member(call="K1AAA", number=1, join_date="20240101"),

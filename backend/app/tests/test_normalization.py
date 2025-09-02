@@ -1,4 +1,4 @@
-from app.services.skcc import Member, QSO, calculate_awards
+from app.services.skcc import QSO, Member, calculate_awards
 
 
 def test_call_normalization_aliases() -> None:

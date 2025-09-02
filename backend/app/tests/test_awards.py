@@ -1,10 +1,13 @@
+from typing import List, Tuple
+
 import pytest
-from httpx import AsyncClient
 from fastapi import status
+from httpx import ASGITransport, AsyncClient
+
+from app.api.routes import awards as awards_route
 from app.main import app
 from app.services import skcc
-from app.api.routes import awards as awards_route
-from typing import List, Tuple
+
 
 @pytest.mark.asyncio
 async def test_calculate_awards_simple() -> None:
@@ -40,7 +43,9 @@ async def test_awards_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
         "<CALL:6>WA9XYZ<BAND:3>20M<MODE:2>CW<QSO_DATE:8>20240103<EOR>"  # duplicate QSO
     )
     files = {"files": ("log.adi", adif, "text/plain")}
-    async with AsyncClient(app=app, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         resp = await ac.post("/awards/check", files=files)
     assert resp.status_code == status.HTTP_200_OK
     data = resp.json()

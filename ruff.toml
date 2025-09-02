@@ -1,0 +1,13 @@
+line-length = 100
+extend-exclude = [
+  ".venv",
+  "**/__pycache__/**",
+]
+
+[lint]
+select = ["E","F","W","I","UP","B","SIM","PL"]
+ignore = []
+
+[lint.per-file-ignores]
+# Tests: allow magic numbers, sys.path tweaks before imports, occasional long lines, and unused loop variables
+"backend/app/tests/**" = ["PLR2004", "E402", "E501", "B007"]

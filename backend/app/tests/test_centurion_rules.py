@@ -1,7 +1,6 @@
-import pytest
 from app.services import skcc
 
-@pytest.mark.asyncio
+
 def test_centurion_rule_filters() -> None:
     members = [
         skcc.Member(call="K1ABC", number=1, join_date="20240105"),  # join after first QSO
