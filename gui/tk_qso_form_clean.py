@@ -24,6 +24,23 @@ from utils.backup_manager import backup_manager  # noqa: E402
 from utils.cluster_client import ClusterSpot, SKCCClusterClient  # noqa: E402
 from utils.roster_manager import RosterManager  # noqa: E402
 
+# Optional Pillow import for better image format support and resizing
+try:  # noqa: E402
+    from PIL import Image, ImageTk  # type: ignore
+except Exception:  # noqa: E402, BLE001
+    Image = None  # type: ignore
+    ImageTk = None  # type: ignore
+
+# Assets directory for decorative images
+ASSETS_DIR = ROOT / "assets"
+BUG_IMAGE_CANDIDATES = (
+    ASSETS_DIR / "bug.png",
+    ASSETS_DIR / "bug.jpg",
+    ASSETS_DIR / "morse_bug.png",
+    ASSETS_DIR / "morse_bug.jpg",
+)
+
+
 # Add backend services for country lookup
 BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
@@ -567,6 +584,13 @@ class QSOForm(ttk.Frame):
 
         # Update roster status display
         self._update_roster_status_display()
+
+        # Decorative bug image at lower-left
+        try:
+            self._add_decorative_bug_image(parent, row=r)
+            r += 1
+        except Exception as e:  # Safe to ignore if image missing or Pillow not installed
+            print(f"Decorative image not shown: {e}")
 
     def _build_right_panel(self, parent):
         """Build the right panel with recent QSOs and RBN spots."""
@@ -1275,6 +1299,50 @@ class QSOForm(ttk.Frame):
         folder = filedialog.askdirectory(title="Select backup folder")
         if folder:
             var.set(folder)
+
+    def _add_decorative_bug_image(self, parent, row: int) -> None:
+        """Try to place a decorative bug image at the lower-left of the form.
+
+        Looks for an image file in the assets directory under common names
+        (bug.png/jpg, morse_bug.png/jpg). If Pillow is available, resizes the
+        image to fit nicely; otherwise attempts to load PNG via Tk.
+        """
+        # Find first existing candidate
+        img_path = next((p for p in BUG_IMAGE_CANDIDATES if p.exists()), None)
+        if not img_path:
+            return  # Silent if no image present
+
+        max_w, max_h = 200, 150  # target bounds for decoration
+
+        # Prefer Pillow if available for formats like JPG and for resizing
+        if Image and ImageTk:
+            try:
+                with Image.open(img_path) as im:  # type: ignore[attr-defined]
+                    # Preserve aspect ratio
+                    im.thumbnail((max_w, max_h))
+                    self._bug_img = ImageTk.PhotoImage(im)  # type: ignore[attr-defined]
+            except Exception as e:  # Fallback to Tk native for PNG
+                print(f"Pillow failed to load image '{img_path.name}': {e}")
+                self._bug_img = None
+        else:
+            self._bug_img = None
+
+        if self._bug_img is None:
+            # Try Tk native loader (PNG supported on most Tk builds)
+            if img_path.suffix.lower() in {".png", ".gif"}:
+                try:
+                    self._bug_img = tk.PhotoImage(file=str(img_path))
+                except Exception as e:
+                    print(f"Tk couldn't load image '{img_path.name}': {e}")
+                    return
+            else:
+                # JPG without Pillow cannot be loaded
+                return
+
+        # Place image in a small frame to keep it anchored
+        deco_frame = ttk.Frame(parent)
+        deco_frame.grid(row=row, column=0, columnspan=2, sticky="w", padx=6, pady=(8, 0))
+        ttk.Label(deco_frame, image=self._bug_img).pack(anchor="w")
 
     def _toggle_cluster(self):
         """Toggle RBN connection on/off."""
