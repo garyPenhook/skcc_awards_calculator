@@ -523,6 +523,16 @@ class QSOForm(ttk.Frame):
             font=("Arial", 9),
         ).pack(anchor="w")
 
+        # General app status (for non-roster info like backups)
+        self.app_status_var = tk.StringVar(value="")
+        self.app_status_label = ttk.Label(
+            status_frame,
+            textvariable=self.app_status_var,
+            foreground="gray",
+            font=("Arial", 9),
+        )
+        self.app_status_label.pack(anchor="w")
+
         # Update roster status display
         self._update_roster_status_display()
 
@@ -1101,31 +1111,53 @@ class QSOForm(ttk.Frame):
             adif_path = getattr(self, "adif_var", None)
             file_path = adif_path.get().strip() if adif_path else ""
             if self._adif_dirty and file_path:
-                if backup_manager.create_backup(file_path):
-                    try:
-                        messagebox.showinfo("Backup", "Backup created on exit.")
-                    except Exception:
-                        # Ignore UI errors during shutdown
-                        pass
+                # Create backup silently on exit (no popups)
+                _ = backup_manager.create_backup(file_path)
         except Exception as e:
             print(f"Backup on exit failed: {e}")
         finally:
             self.winfo_toplevel().destroy()
 
     def _backup_now(self):
-        """Create a backup immediately for the selected ADIF file."""
+        """Create a backup immediately for the selected ADIF file (status only)."""
         try:
             file_path = self.adif_var.get().strip()
             if not file_path:
-                messagebox.showwarning("Backup", "No ADIF file selected.")
+                self._set_status(
+                    "No ADIF file selected for backup.",
+                    color="orange",
+                    duration_ms=0,
+                )
                 return
             success = backup_manager.create_backup(file_path)
             if success:
-                messagebox.showinfo("Backup", "Backup created successfully.")
+                self._set_status(
+                    f"Backup created: {Path(file_path).name}",
+                    color="green",
+                    duration_ms=0,
+                )
             else:
-                messagebox.showerror("Backup", "Backup failed. Check settings and path.")
+                self._set_status(
+                    "Backup failed. Check settings and path.",
+                    color="red",
+                    duration_ms=0,
+                )
         except Exception as e:
-            messagebox.showerror("Backup", f"Backup failed: {e}")
+            self._set_status(f"Backup failed: {e}", color="red", duration_ms=0)
+
+    def _set_status(self, message: str, color: str = "gray", duration_ms: int = 0) -> None:
+        """Show a status message with a clock-style timestamp.
+
+        If duration_ms <= 0, it persists.
+        """
+        try:
+            self.app_status_label.configure(foreground=color)
+            ts = datetime.now().strftime("%H:%M:%S")
+            self.app_status_var.set(f"🕒 {ts} — {message}")
+            if duration_ms and duration_ms > 0:
+                self.after(duration_ms, lambda: self.app_status_var.set(""))
+        except Exception as e:
+            print(f"Status update error: {e}")
 
     def _configure_backup(self):
         """Simple backup configuration dialog."""

@@ -11,6 +11,7 @@ This is for local smoke testing; for full correctness, run unit tests or the Fas
 
 from __future__ import annotations
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -30,7 +31,12 @@ from app.services.skcc import (  # noqa: E402
 )
 
 
-def load_adif_text() -> str:
+def load_adif_text(arg_path: str | None = None) -> str:
+    if arg_path:
+        p = Path(arg_path)
+        if not p.is_file():
+            raise SystemExit(f"ADIF file not found: {p}")
+        return p.read_text(encoding="utf-8", errors="ignore")
     for candidate in [
         ROOT / "test_adif_sample.adi",
         ROOT / "scripts" / "main.adi",
@@ -38,7 +44,9 @@ def load_adif_text() -> str:
     ]:
         if candidate.exists():
             return candidate.read_text(encoding="utf-8", errors="ignore")
-    raise SystemExit("No sample ADIF found (looked for test_adif_sample.adi or main.adi)")
+    raise SystemExit(
+        "No ADIF found. Provide --adif path or add test_adif_sample.adi to project root."
+    )
 
 
 def synthesize_members(qsos: list[QSO]) -> list[Member]:
@@ -64,7 +72,16 @@ def synthesize_members(qsos: list[QSO]) -> list[Member]:
 
 
 def main() -> None:
-    text = load_adif_text()
+    parser = argparse.ArgumentParser(description="SKCC awards demo runner")
+    parser.add_argument(
+        "--adif",
+        dest="adif",
+        metavar="PATH",
+        help="Path to an ADIF file to load",
+    )
+    args = parser.parse_args()
+
+    text = load_adif_text(args.adif)
     qsos = parse_adif(text)
     members = synthesize_members(qsos)
 
