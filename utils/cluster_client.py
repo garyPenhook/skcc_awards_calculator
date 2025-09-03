@@ -1,13 +1,27 @@
 #!/usr/bin/env python3
 """SKCC Cluster Spot Manager - Connects to CW-Club RBN Gateway for SKCC-filtered spots."""
 
+import re
 import socket
 import threading
 import time
-import re
-from datetime import datetime, timezone
-from typing import Optional, Callable, Dict, Any
+from contextlib import suppress
 from dataclasses import dataclass
+from datetime import datetime, timezone
+from typing import Any, Callable, Dict, List, Optional
+
+# Frequency ranges for amateur HF bands (MHz)
+BAND_RANGES: List[tuple[str, float, float]] = [
+    ("160M", 1.8, 2.0),
+    ("80M", 3.5, 4.0),
+    ("40M", 7.0, 7.3),
+    ("30M", 10.1, 10.15),
+    ("20M", 14.0, 14.35),
+    ("17M", 18.068, 18.168),
+    ("15M", 21.0, 21.45),
+    ("12M", 24.89, 24.99),
+    ("10M", 28.0, 29.7),
+]
 
 
 @dataclass
@@ -21,33 +35,22 @@ class ClusterSpot:
     snr: Optional[int] = None
     speed: Optional[int] = None  # WPM for CW
     comment: Optional[str] = None
+    # Comma-separated list of club tags detected in the spot line, e.g. "SKCC, CWOPS, A1A"
+    clubs: Optional[str] = None
 
     @property
     def band(self) -> str:
         """Calculate band from frequency."""
-        if 1.8 <= self.frequency <= 2.0:
-            return "160M"
-        elif 3.5 <= self.frequency <= 4.0:
-            return "80M"
-        elif 7.0 <= self.frequency <= 7.3:
-            return "40M"
-        elif 10.1 <= self.frequency <= 10.15:
-            return "30M"
-        elif 14.0 <= self.frequency <= 14.35:
-            return "20M"
-        elif 18.068 <= self.frequency <= 18.168:
-            return "17M"
-        elif 21.0 <= self.frequency <= 21.45:
-            return "15M"
-        elif 24.89 <= self.frequency <= 24.99:
-            return "12M"
-        elif 28.0 <= self.frequency <= 29.7:
-            return "10M"
-        else:
-            return "??M"
+        for label, low, high in BAND_RANGES:
+            if low <= self.frequency <= high:
+                return label
+        return "??M"
 
     def __str__(self):
-        return f"{self.callsign:>10} {self.frequency:>8.1f} {self.band:>4} {self.spotter:>10} {self.time_utc.strftime('%H:%M')}"
+        return (
+            f"{self.callsign:>10} {self.frequency:>8.1f} {self.band:>4} "
+            f"{self.spotter:>10} {self.time_utc.strftime('%H:%M')}"
+        )
 
 
 class SKCCClusterClient:
@@ -64,10 +67,10 @@ class SKCCClusterClient:
         self.socket = None
         self.thread = None
         self.running = False
-
         # RBN spot parsing regex
         # Example: DX de OH6BG-#:     7026.0  W4GNS          CQ      1322Z
-        self.spot_pattern = re.compile(r"DX de (\S+):\s+(\d+\.\d+)\s+(\S+)\s+.*?(\d{4})Z")
+        # Some gateways include additional text (e.g., club tags) between the call and time.
+        self.spot_pattern = re.compile(r"DX de (\S+):\s+(\d+\.\d+)\s+(\S+).*?(\d{4})Z")
 
     def connect(self) -> bool:
         """Connect to the CW-Club RBN gateway."""
@@ -94,7 +97,7 @@ class SKCCClusterClient:
             print("✅ Connected to SKCC cluster feed")
             return True
 
-        except Exception as e:
+        except (OSError, TimeoutError) as e:
             print(f"❌ Failed to connect to cluster: {e}")
             self.connected = False
             return False
@@ -105,10 +108,8 @@ class SKCCClusterClient:
         self.connected = False
 
         if self.socket:
-            try:
+            with suppress(Exception):
                 self.socket.close()
-            except:
-                pass
             self.socket = None
 
         if self.thread and self.thread.is_alive():
@@ -120,8 +121,8 @@ class SKCCClusterClient:
         """Send a command to the cluster."""
         if self.socket:
             try:
-                self.socket.send(f"{command}\r\n".encode("utf-8"))
-            except Exception as e:
+                self.socket.send(f"{command}\r\n".encode())
+            except OSError as e:
                 print(f"Error sending command '{command}': {e}")
 
     def _read_spots(self):
@@ -130,7 +131,10 @@ class SKCCClusterClient:
 
         while self.running and self.connected:
             try:
-                data = self.socket.recv(1024).decode("utf-8", errors="ignore")
+                sock = self.socket
+                if not sock:
+                    break
+                data = sock.recv(1024).decode("utf-8", errors="ignore")
                 if not data:
                     break
 
@@ -138,14 +142,14 @@ class SKCCClusterClient:
                 lines = buffer.split("\n")
                 buffer = lines[-1]  # Keep incomplete line
 
-                for line in lines[:-1]:
-                    line = line.strip()
-                    if line:
-                        self._process_line(line)
+                for one in lines[:-1]:
+                    line_stripped = one.strip()
+                    if line_stripped:
+                        self._process_line(line_stripped)
 
             except socket.timeout:
                 continue
-            except Exception as e:
+            except OSError as e:
                 print(f"Error reading from cluster: {e}")
                 break
 
@@ -189,6 +193,32 @@ class SKCCClusterClient:
                     if speed_match:
                         speed = int(speed_match.group(1))
 
+                # Extract club memberships mentioned in the spot line.
+                # We match a set of known clubs case-insensitively.
+                known_clubs = [
+                    "SKCC",
+                    "CWOPS",  # CWops
+                    "CWO",  # sometimes abbreviated
+                    "A1A",  # ARRL A-1 Operators Club
+                    "FISTS",
+                    "NAQCC",
+                    "FOC",
+                    "AGCW",
+                    "HSC",
+                    "VHSC",
+                    "EHSC",
+                ]
+                clubs_found: List[str] = []
+                lower_line = line.lower()
+                for tag in known_clubs:
+                    if tag.lower() in lower_line:
+                        # Normalize CWops variants to CWOPS
+                        normalized = "CWOPS" if tag in ("CWOPS", "CWO") else tag
+                        if normalized not in clubs_found:
+                            clubs_found.append(normalized)
+
+                clubs_text = ", ".join(clubs_found) if clubs_found else None
+
                 # Create spot
                 spot = ClusterSpot(
                     callsign=callsign,
@@ -197,20 +227,19 @@ class SKCCClusterClient:
                     time_utc=spot_time,
                     snr=snr,
                     speed=speed,
+                    clubs=clubs_text,
                 )
 
                 # Call callback if provided
                 if self.spot_callback:
                     self.spot_callback(spot)
 
-            except Exception as e:
+            except (ValueError, OSError) as e:
                 print(f"Error parsing spot line '{line}': {e}")
-        else:
-            # Print non-spot lines for debugging (login messages, etc.)
-            if any(
-                keyword in line.lower() for keyword in ["login", "welcome", "connected", "filter"]
-            ):
-                print(f"Cluster: {line}")
+        elif any(
+            keyword in line.lower() for keyword in ["login", "welcome", "connected", "filter"]
+        ):
+            print(f"Cluster: {line}")
 
     def get_status(self) -> Dict[str, Any]:
         """Get connection status."""

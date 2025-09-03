@@ -637,8 +637,8 @@ class QSOForm(ttk.Frame):
         )
         self.cluster_status_label.pack(side=tk.LEFT)
 
-        # RBN spots treeview
-        spots_columns = ("Time", "Call", "Freq", "Band", "Spotter", "SNR")
+        # RBN spots treeview (add SKCC membership and Clubs columns)
+        spots_columns = ("Time", "Call", "SKCC", "Clubs", "Freq", "Band", "Spotter", "SNR")
         self.spots_tree = ttk.Treeview(
             cluster_frame, columns=spots_columns, show="headings", height=8
         )
@@ -646,6 +646,8 @@ class QSOForm(ttk.Frame):
         # Configure spots column headings and widths
         self.spots_tree.heading("Time", text="Time UTC")
         self.spots_tree.heading("Call", text="Call")
+        self.spots_tree.heading("SKCC", text="SKCC #")
+        self.spots_tree.heading("Clubs", text="Clubs")
         self.spots_tree.heading("Freq", text="Freq (MHz)")
         self.spots_tree.heading("Band", text="Band")
         self.spots_tree.heading("Spotter", text="Spotter")
@@ -653,6 +655,8 @@ class QSOForm(ttk.Frame):
 
         self.spots_tree.column("Time", width=70, minwidth=60)
         self.spots_tree.column("Call", width=90, minwidth=80)
+        self.spots_tree.column("SKCC", width=90, minwidth=70)
+        self.spots_tree.column("Clubs", width=120, minwidth=90)
         self.spots_tree.column("Freq", width=100, minwidth=90)  # Wider for 3 decimal places
         self.spots_tree.column("Band", width=60, minwidth=50)
         self.spots_tree.column("Spotter", width=100, minwidth=80)
@@ -1336,15 +1340,27 @@ class QSOForm(ttk.Frame):
             children = self.spots_tree.get_children()
             for child in children:
                 values = self.spots_tree.item(child, "values")
-                if values and len(values) > 1 and values[1] == spot.callsign:
+                if values and len(values) > 2 and values[1] == spot.callsign:
                     # Found duplicate callsign - remove the older spot
-                    old_freq = values[2] if len(values) > 2 else "unknown"
+                    old_freq = values[4] if len(values) > 4 else "unknown"
                     print(
                         "Duplicate filter: Replacing "
                         f"{spot.callsign} {old_freq} MHz with {freq_str} MHz"
                     )
                     self.spots_tree.delete(child)
                     duplicate_found = True
+
+            # Lookup SKCC membership number for the spotted callsign
+            skcc_display = ""
+            try:
+                info = self.roster_manager.lookup_member(spot.callsign)
+                if info and info.get("number"):
+                    skcc_display = info["number"]
+            except Exception:
+                skcc_display = ""
+
+            # Clubs from the spot feed (e.g., CWOPS, A1A, FISTS)
+            clubs_display = getattr(spot, "clubs", None) or ""
 
             # Insert new spot at the top of the tree
             item = self.spots_tree.insert(
@@ -1353,6 +1369,8 @@ class QSOForm(ttk.Frame):
                 values=(
                     time_str,
                     spot.callsign,
+                    skcc_display,
+                    clubs_display,
                     freq_str,
                     spot.band,
                     spot.spotter,
@@ -1383,8 +1401,8 @@ class QSOForm(ttk.Frame):
 
             if values:
                 callsign = values[1]
-                frequency = values[2]
-                band = values[3]
+                frequency = values[4]
+                band = values[5]
 
                 # Auto-fill the form
                 self.call_var.set(callsign)
