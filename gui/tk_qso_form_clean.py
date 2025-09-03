@@ -386,7 +386,7 @@ class QSOForm(ttk.Frame):
         # Build QSO form in left frame
         self._build_qso_form(left_frame)
 
-        # Build right panel with QSO history and cluster spots
+        # Build right panel with QSO history and Reverse Beacon Network spots
         self._build_right_panel(right_frame)
 
     def _build_qso_form(self, parent):
@@ -569,10 +569,10 @@ class QSOForm(ttk.Frame):
         self._update_roster_status_display()
 
     def _build_right_panel(self, parent):
-        """Build the right panel with recent QSOs and cluster spots."""
+        """Build the right panel with recent QSOs and RBN spots."""
         # Configure right panel grid
         parent.rowconfigure(0, weight=1)  # Recent QSOs
-        parent.rowconfigure(1, weight=1)  # Cluster spots
+        parent.rowconfigure(1, weight=1)  # RBN spots
         parent.columnconfigure(0, weight=1)
 
         # Recent QSOs section (top half of right panel)
@@ -611,19 +611,19 @@ class QSOForm(ttk.Frame):
             "", "end", values=("", "Select ADIF file to view recent QSOs", "", "", "")
         )
 
-        # Cluster spots section (bottom half of right panel)
-        cluster_frame = ttk.LabelFrame(parent, text="SKCC Cluster Spots", padding=10)
+        # RBN spots section (bottom half of right panel)
+        cluster_frame = ttk.LabelFrame(parent, text="Reverse Beacon Network spots", padding=10)
         cluster_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
         cluster_frame.columnconfigure(0, weight=1)
         cluster_frame.rowconfigure(1, weight=1)  # Spots tree gets the space
 
-        # Cluster control frame
+        # RBN control frame
         cluster_control_frame = ttk.Frame(cluster_frame)
         cluster_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
 
         self.cluster_connect_btn = ttk.Button(
             cluster_control_frame,
-            text="Connect to Cluster",
+            text="Connect to RBN",
             command=self._toggle_cluster,
         )
         self.cluster_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
@@ -637,7 +637,7 @@ class QSOForm(ttk.Frame):
         )
         self.cluster_status_label.pack(side=tk.LEFT)
 
-        # Cluster spots treeview
+        # RBN spots treeview
         spots_columns = ("Time", "Call", "Freq", "Band", "Spotter", "SNR")
         self.spots_tree = ttk.Treeview(
             cluster_frame, columns=spots_columns, show="headings", height=8
@@ -1273,16 +1273,16 @@ class QSOForm(ttk.Frame):
             var.set(folder)
 
     def _toggle_cluster(self):
-        """Toggle cluster connection on/off."""
+        """Toggle RBN connection on/off."""
         if self.cluster_client and self.cluster_client.connected:
             # Disconnect
             self.cluster_client.disconnect()
             self.cluster_client = None
-            self.cluster_connect_btn.config(text="Connect to Cluster")
+            self.cluster_connect_btn.config(text="Connect to RBN")
             self.cluster_status_var.set("Disconnected")
             self.cluster_status_label.config(foreground="red")
             try:
-                self._set_status("Cluster disconnected", color="orange", duration_ms=0)
+                self._set_status("RBN disconnected", color="orange", duration_ms=0)
             except Exception:
                 pass
         else:
@@ -1299,7 +1299,7 @@ class QSOForm(ttk.Frame):
                 self.cluster_status_label.config(foreground="green")
                 try:
                     self._set_status(
-                        f"Cluster connected as {callsign}",
+                        f"RBN connected as {callsign}",
                         color="green",
                         duration_ms=0,
                     )
@@ -1311,7 +1311,7 @@ class QSOForm(ttk.Frame):
                 self.cluster_status_label.config(foreground="red")
                 try:
                     self._set_status(
-                        "Cluster connection failed",
+                        "RBN connection failed",
                         color="red",
                         duration_ms=0,
                     )
@@ -1319,12 +1319,12 @@ class QSOForm(ttk.Frame):
                     pass
 
     def _on_new_spot(self, spot: ClusterSpot):
-        """Handle new cluster spot."""
+        """Handle new RBN spot."""
         # Use after() to safely update GUI from background thread
         self.after(0, self._add_spot_to_tree, spot)
 
     def _add_spot_to_tree(self, spot: ClusterSpot):
-        """Add a new spot to the spots treeview (thread-safe)."""
+        """Add a new RBN spot to the spots treeview (thread-safe)."""
         try:
             # Format values for display
             time_str = spot.time_utc.strftime("%H:%M")
@@ -1376,7 +1376,7 @@ class QSOForm(ttk.Frame):
             print(f"Error adding spot to tree: {e}")
 
     def _on_spot_double_click(self, event):
-        """Handle double-click on a cluster spot to auto-fill frequency."""
+        """Handle double-click on an RBN spot to auto-fill frequency."""
         try:
             item = self.spots_tree.selection()[0]
             values = self.spots_tree.item(item, "values")
@@ -1408,12 +1408,12 @@ class QSOForm(ttk.Frame):
             print(f"Error handling spot double-click: {e}")
 
     def _get_cluster_callsign(self) -> Optional[str]:
-        """Prompt user for cluster callsign."""
+        """Prompt user for RBN callsign."""
         from tkinter import simpledialog
 
         callsign = simpledialog.askstring(
-            "Cluster Connection",
-            "Enter your callsign for cluster connection:\n(e.g., W4GNS-SKCC)",
+            "RBN Connection",
+            "Enter your callsign for RBN connection:\n(e.g., W4GNS-SKCC)",
             initialvalue="W4GNS-SKCC",
         )
 
@@ -1424,7 +1424,7 @@ class QSOForm(ttk.Frame):
 
 def main():
     root = tk.Tk()
-    root.title("W4GNS SKCC Logger - Enhanced with Cluster Spots")
+    root.title("W4GNS SKCC Logger - Reverse Beacon Network spots")
     root.geometry("1200x700")  # Wider layout for two-column design
     root.minsize(1000, 600)  # Minimum size to see all features
 
