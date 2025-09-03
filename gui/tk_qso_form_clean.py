@@ -33,12 +33,8 @@ except Exception:  # noqa: E402, BLE001
 
 # Assets directory for decorative images
 ASSETS_DIR = ROOT / "assets"
-BUG_IMAGE_CANDIDATES = (
-    ASSETS_DIR / "bug.png",
-    ASSETS_DIR / "bug.jpg",
-    ASSETS_DIR / "morse_bug.png",
-    ASSETS_DIR / "morse_bug.jpg",
-)
+BUG_IMAGE_PRIMARY = ASSETS_DIR / "bug.png"
+BUG_IMAGE_FALLBACK = ASSETS_DIR / "bug.jpg"
 
 
 # Add backend services for country lookup
@@ -585,12 +581,9 @@ class QSOForm(ttk.Frame):
         # Update roster status display
         self._update_roster_status_display()
 
-        # Decorative bug image at lower-left
-        try:
-            self._add_decorative_bug_image(parent, row=r)
-            r += 1
-        except Exception as e:  # Safe to ignore if image missing or Pillow not installed
-            print(f"Decorative image not shown: {e}")
+        # Decorative bug image at lower-left (always reserve space)
+        self._add_decorative_bug_image(parent, row=r)
+        r += 1
 
     def _build_right_panel(self, parent):
         """Build the right panel with recent QSOs and RBN spots."""
@@ -1307,15 +1300,17 @@ class QSOForm(ttk.Frame):
         (bug.png/jpg, morse_bug.png/jpg). If Pillow is available, resizes the
         image to fit nicely; otherwise attempts to load PNG via Tk.
         """
-        # Find first existing candidate
-        img_path = next((p for p in BUG_IMAGE_CANDIDATES if p.exists()), None)
-        if not img_path:
-            return  # Silent if no image present
+        # Prefer bug.png, fall back to bug.jpg
+        img_path = (
+            BUG_IMAGE_PRIMARY
+            if BUG_IMAGE_PRIMARY.exists()
+            else (BUG_IMAGE_FALLBACK if BUG_IMAGE_FALLBACK.exists() else None)
+        )
 
         max_w, max_h = 200, 150  # target bounds for decoration
 
         # Prefer Pillow if available for formats like JPG and for resizing
-        if Image and ImageTk:
+        if img_path and Image and ImageTk:
             try:
                 with Image.open(img_path) as im:  # type: ignore[attr-defined]
                     # Preserve aspect ratio
@@ -1327,22 +1322,37 @@ class QSOForm(ttk.Frame):
         else:
             self._bug_img = None
 
-        if self._bug_img is None:
+        if self._bug_img is None and img_path is not None:
             # Try Tk native loader (PNG supported on most Tk builds)
             if img_path.suffix.lower() in {".png", ".gif"}:
                 try:
                     self._bug_img = tk.PhotoImage(file=str(img_path))
                 except Exception as e:
                     print(f"Tk couldn't load image '{img_path.name}': {e}")
-                    return
+                    self._bug_img = None
             else:
                 # JPG without Pillow cannot be loaded
-                return
+                self._bug_img = None
 
         # Place image in a small frame to keep it anchored
         deco_frame = ttk.Frame(parent)
         deco_frame.grid(row=row, column=0, columnspan=2, sticky="w", padx=6, pady=(8, 0))
-        ttk.Label(deco_frame, image=self._bug_img).pack(anchor="w")
+        if self._bug_img is not None:
+            ttk.Label(deco_frame, image=self._bug_img).pack(anchor="w")
+        else:
+            # Fallback: instruct user to add the image file
+            msg = (
+                "Add your bug image at 'assets/bug.png' (or bug.jpg). "
+                "PNG will load without Pillow; JPG requires Pillow."
+            )
+            ttk.Label(
+                deco_frame,
+                text=msg,
+                foreground="gray",
+                font=("Arial", 8, "italic"),
+                wraplength=300,
+                justify="left",
+            ).pack(anchor="w")
 
     def _toggle_cluster(self):
         """Toggle RBN connection on/off."""
