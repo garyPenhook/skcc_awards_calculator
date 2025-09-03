@@ -235,6 +235,14 @@ class QSOForm(ttk.Frame):
             self.progress_dialog.update_status(
                 "Roster update skipped", "No roster manager available"
             )
+            try:
+                self._set_status(
+                    "Roster update skipped: No roster manager",
+                    color="orange",
+                    duration_ms=0,
+                )
+            except Exception:
+                pass
             return
 
         def update_worker():
@@ -292,6 +300,14 @@ class QSOForm(ttk.Frame):
                     def close_and_update():
                         self.progress_dialog.close()
                         self._update_roster_status_display()
+                        try:
+                            self._set_status(
+                                f"Roster updated: {member_count:,} members" f" | {last_update_str}",
+                                color="green",
+                                duration_ms=0,
+                            )
+                        except Exception:
+                            pass
 
                     self.after(3000, close_and_update)
                 else:
@@ -302,6 +318,14 @@ class QSOForm(ttk.Frame):
                             "Roster update failed", message
                         ),
                     )
+                    try:
+                        self._set_status(
+                            f"Roster update failed: {message}",
+                            color="red",
+                            duration_ms=0,
+                        )
+                    except Exception:
+                        pass
 
             except Exception as e:
                 # Schedule UI update on main thread
@@ -310,6 +334,14 @@ class QSOForm(ttk.Frame):
                     0,
                     lambda: self.progress_dialog.update_status("Roster update error", error_msg),
                 )
+                try:
+                    self._set_status(
+                        f"Roster update error: {error_msg}",
+                        color="red",
+                        duration_ms=0,
+                    )
+                except Exception:
+                    pass
             finally:
                 if loop:
                     loop.close()
@@ -677,6 +709,15 @@ class QSOForm(ttk.Frame):
             self.adif_var.set(file_path)
             # Load and display recent QSOs from the file
             self._load_recent_qsos(file_path)
+            # Status: selected ADIF file
+            try:
+                self._set_status(
+                    f"Selected ADIF: {Path(file_path).name}",
+                    color="blue",
+                    duration_ms=0,
+                )
+            except Exception:
+                pass
 
     def _update_time_display(self):
         try:
@@ -887,6 +928,10 @@ class QSOForm(ttk.Frame):
                 f"End: {utc_end_time.strftime('%H:%M:%S UTC')}",
             )
 
+            # Also reflect save in status line (persistent)
+            summary = f"Saved QSO {q.call}" f" | {q.band or ''}" f" | {duration_text}"
+            self._set_status(summary, color="green", duration_ms=0)
+
             self._clear_fields()
         except Exception as e:
             messagebox.showerror("Error", str(e))
@@ -1027,7 +1072,16 @@ class QSOForm(ttk.Frame):
                     print(f"Error processing QSO {qso.call}: {e}")
                     continue
 
-            print(f"Loaded {min(len(sorted_qsos), 20)} recent QSOs from {file_path}")
+            loaded_count = min(len(sorted_qsos), 20)
+            print(f"Loaded {loaded_count} recent QSOs from {file_path}")
+            try:
+                self._set_status(
+                    f"Loaded {loaded_count} recent QSOs from {Path(file_path).name}",
+                    color="blue",
+                    duration_ms=0,
+                )
+            except Exception:
+                pass
 
         except FileNotFoundError:
             print(f"ADIF file not found: {file_path}")
@@ -1227,6 +1281,10 @@ class QSOForm(ttk.Frame):
             self.cluster_connect_btn.config(text="Connect to Cluster")
             self.cluster_status_var.set("Disconnected")
             self.cluster_status_label.config(foreground="red")
+            try:
+                self._set_status("Cluster disconnected", color="orange", duration_ms=0)
+            except Exception:
+                pass
         else:
             # Connect - prompt for callsign
             callsign = self._get_cluster_callsign()
@@ -1239,10 +1297,26 @@ class QSOForm(ttk.Frame):
                 self.cluster_connect_btn.config(text="Disconnect")
                 self.cluster_status_var.set(f"Connected as {callsign}")
                 self.cluster_status_label.config(foreground="green")
+                try:
+                    self._set_status(
+                        f"Cluster connected as {callsign}",
+                        color="green",
+                        duration_ms=0,
+                    )
+                except Exception:
+                    pass
             else:
                 self.cluster_client = None
                 self.cluster_status_var.set("Connection failed")
                 self.cluster_status_label.config(foreground="red")
+                try:
+                    self._set_status(
+                        "Cluster connection failed",
+                        color="red",
+                        duration_ms=0,
+                    )
+                except Exception:
+                    pass
 
     def _on_new_spot(self, spot: ClusterSpot):
         """Handle new cluster spot."""
@@ -1321,6 +1395,14 @@ class QSOForm(ttk.Frame):
                 self.call_entry.focus_set()
 
                 print(f"Auto-filled from spot: {callsign} on {frequency} MHz ({band})")
+                try:
+                    self._set_status(
+                        f"From spot: {callsign} @ {frequency} MHz ({band})",
+                        color="blue",
+                        duration_ms=0,
+                    )
+                except Exception:
+                    pass
 
         except (IndexError, Exception) as e:
             print(f"Error handling spot double-click: {e}")
