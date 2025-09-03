@@ -12,6 +12,7 @@ A comprehensive Python application for SKCC (Straight Key Century Club) QSO logg
 - **📊 SKCC Roster Integration**: 30,000+ member database with auto-fill
 - **⏰ QSO Timing**: Automatic start/end time tracking for Rag Chew awards
 - **💾 ADIF 3.1.5 Logging**: Professional QSO logging with backup management
+   - Backups are created automatically when you exit the app (configurable)
 - **🎨 Two-Column Layout**: QSO form + spots display for efficient operation
 - **🔄 Smart Updates**: Checks roster on startup (1-hour minimum interval)
 
@@ -170,7 +171,7 @@ skcc_awards_calculator/
 
 ### Backup Settings
 - **Location**: Configure in QSO logger settings
-- **Automatic**: Backup before each session
+- **Automatic**: Backup on application exit (Quit button or close window)
 - **Format**: Standard ADIF files
 
 ### Cluster Spots

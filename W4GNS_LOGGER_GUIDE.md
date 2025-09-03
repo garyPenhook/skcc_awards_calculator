@@ -17,7 +17,7 @@ This is the **official W4GNS SKCC Logger** with all enhanced features:
 - ✅ **Roster Updates**: Checks on startup (updates if older than 1 hour)
 - ✅ **Duplicate Filtering**: Clean spots display without repeated callsigns
 - ✅ **Two-Column Layout**: QSO form on left, spots/history on right
-- ✅ **Backup Management**: Automatic ADIF backup functionality
+- ✅ **Backup Management**: Automatic ADIF backup on application exit
 - ✅ **Progress Dialogs**: Startup progress with roster status display
 
 ## Alternative Launch Methods

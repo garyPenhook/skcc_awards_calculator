@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
+# ruff: noqa: PLR0915, PLR0912, PLR2004, SIM102, SIM105
 """Clean QSO Form with Country/State Support."""
 
-import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
-from datetime import datetime, timezone
+import asyncio
+import json
 import sys
 import threading
-import json
-import shutil
-import asyncio
+import tkinter as tk
+from datetime import datetime, timezone
 from pathlib import Path
+from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
 # Add the repo root to Python path for imports
@@ -17,12 +17,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from models.key_type import KeyType, DISPLAY_LABELS, normalize
-from models.qso import QSO
-from adif_io.adif_writer import append_record
-from utils.roster_manager import RosterManager
-from utils.backup_manager import backup_manager
-from utils.cluster_client import SKCCClusterClient, ClusterSpot
+from adif_io.adif_writer import append_record  # noqa: E402
+from models.key_type import DISPLAY_LABELS, KeyType, normalize  # noqa: E402
+from models.qso import QSO  # noqa: E402
+from utils.backup_manager import backup_manager  # noqa: E402
+from utils.cluster_client import ClusterSpot, SKCCClusterClient  # noqa: E402
+from utils.roster_manager import RosterManager  # noqa: E402
 
 # Add backend services for country lookup
 BACKEND_APP = ROOT / "backend" / "app"
@@ -30,13 +30,13 @@ if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
 try:
-    from services.skcc import get_dxcc_country, parse_adif
+    from services.skcc import get_dxcc_country, parse_adif  # type: ignore
 except ImportError:
     # Fallback if backend services not available
-    def get_dxcc_country(call):
+    def get_dxcc_country(_call):
         return None
 
-    def parse_adif(content):
+    def parse_adif(_content):
         return []
 
 
@@ -143,6 +143,9 @@ class QSOForm(ttk.Frame):
         self.backup_config_file = Path.home() / ".skcc_awards" / "backup_config.json"
         self.backup_config = self._load_backup_config()
 
+        # Track whether the ADIF file has changed during this session
+        self._adif_dirty = False
+
         self._build_widgets()
         self._update_time_display()
 
@@ -164,7 +167,9 @@ class QSOForm(ttk.Frame):
             status = self.roster_manager.get_status()
             member_count = status.get("member_count", 0)
             last_update = status.get("last_update")
-            needs_update = status.get("needs_update", False)
+            # Retrieve but don't use; status display below is sufficient
+            # (kept for potential future use)
+            status.get("needs_update", False)
 
             if last_update:
                 if isinstance(last_update, str):
@@ -198,15 +203,15 @@ class QSOForm(ttk.Frame):
             # Create a minimal roster manager or use a dummy
             try:
                 self.roster_manager = RosterManager()
-            except Exception as e:
-                print(f"Warning: Could not create roster manager: {e}")
+            except Exception as create_rm_err:
+                print(f"Warning: Could not create roster manager: {create_rm_err}")
 
                 # Create a dummy roster manager that won't crash
                 class DummyRosterManager:
-                    def lookup_member(self, call):
+                    def lookup_member(self, _call):
                         return None
 
-                    def search_callsigns(self, prefix, limit=10):
+                    def search_callsigns(self, _prefix, limit=10):
                         return []
 
                     async def ensure_roster_updated(
@@ -269,7 +274,7 @@ class QSOForm(ttk.Frame):
                             else:
                                 last_update_dt = last_update
                             last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                        except:
+                        except Exception:
                             last_update_str = str(last_update)
                     else:
                         last_update_str = "Never"
@@ -300,9 +305,10 @@ class QSOForm(ttk.Frame):
 
             except Exception as e:
                 # Schedule UI update on main thread
+                error_msg = str(e)
                 self.after(
                     0,
-                    lambda: self.progress_dialog.update_status("Roster update error", str(e)),
+                    lambda: self.progress_dialog.update_status("Roster update error", error_msg),
                 )
             finally:
                 if loop:
@@ -321,7 +327,7 @@ class QSOForm(ttk.Frame):
 
         try:
             if self.backup_config_file.exists():
-                with open(self.backup_config_file, "r") as f:
+                with open(self.backup_config_file, encoding="utf-8") as f:
                     config = json.load(f)
                     return {**default_config, **config}
         except Exception:
@@ -381,12 +387,32 @@ class QSOForm(ttk.Frame):
         self.call_entry = ttk.Entry(parent, textvariable=self.call_var, width=20)
         self.call_entry.grid(row=r, column=1, sticky="w", padx=6, pady=4)
         self.call_var.trace_add("write", self._on_callsign_change)
+        # Remember the call row and reserve the next row for autocomplete dropdown
+        self.call_row = r
 
         # Auto-complete listbox (initially hidden)
         self.autocomplete_frame = ttk.Frame(parent)
         self.autocomplete_listbox = tk.Listbox(self.autocomplete_frame, height=5, width=30)
         self.autocomplete_listbox.bind("<Double-Button-1>", self._select_autocomplete)
-        r += 1
+
+        # Previous QSO indicator (placed two rows below Call)
+        prev_row = self.call_row + 2
+        ttk.Label(parent, text="Previous QSO:").grid(
+            row=prev_row, column=0, sticky="e", padx=6, pady=4
+        )
+        self.previous_qso_var = tk.StringVar()
+        self.previous_qso_label = ttk.Label(
+            parent,
+            textvariable=self.previous_qso_var,
+            foreground="orange",
+            font=("Arial", 9),
+            wraplength=380,
+            justify="left",
+        )
+        self.previous_qso_label.grid(row=prev_row, column=1, sticky="w", padx=6, pady=4)
+        # Track this row and continue building from the next row
+        self.prev_qso_row = prev_row
+        r = self.prev_qso_row + 1
 
         # Freq & Band
         ttk.Label(parent, text="Freq (MHz)").grid(row=r, column=0, sticky="e", padx=6, pady=4)
@@ -434,18 +460,6 @@ class QSOForm(ttk.Frame):
         )
         r += 1
 
-        # Previous QSO indicator
-        ttk.Label(parent, text="Previous QSO:").grid(row=r, column=0, sticky="e", padx=6, pady=4)
-        self.previous_qso_var = tk.StringVar()
-        self.previous_qso_label = ttk.Label(
-            parent,
-            textvariable=self.previous_qso_var,
-            foreground="orange",
-            font=("Arial", 9),
-        )
-        self.previous_qso_label.grid(row=r, column=1, sticky="w", padx=6, pady=4)
-        r += 1
-
         # Country (auto-filled from callsign)
         ttk.Label(parent, text="Country").grid(row=r, column=0, sticky="e", padx=6, pady=4)
         self.country_var = tk.StringVar()
@@ -488,6 +502,7 @@ class QSOForm(ttk.Frame):
         ttk.Button(btn_row, text="Backup Config", command=self._configure_backup).pack(
             side=tk.LEFT, padx=6
         )
+        ttk.Button(btn_row, text="Backup now", command=self._backup_now).pack(side=tk.LEFT, padx=6)
         ttk.Button(btn_row, text="Quit", command=self._quit).pack(side=tk.LEFT, padx=6)
         r += 1
 
@@ -631,7 +646,7 @@ class QSOForm(ttk.Frame):
                         else:
                             last_update_dt = last_update
                         last_update_str = last_update_dt.strftime("%Y-%m-%d %H:%M:%S UTC")
-                    except:
+                    except Exception:
                         last_update_str = str(last_update)
                 else:
                     last_update_str = "Never updated"
@@ -681,7 +696,7 @@ class QSOForm(ttk.Frame):
             print(f"Time display error: {e}")
             self.after(5000, self._update_time_display)
 
-    def _on_callsign_change(self, *args):
+    def _on_callsign_change(self, *_args):
         """Handle callsign field changes for auto-complete and country lookup."""
         callsign = self.call_var.get().upper().strip()
 
@@ -750,9 +765,9 @@ class QSOForm(ttk.Frame):
                         display_text = f"{match['call']} - SKCC #{match['number']}"
                         self.autocomplete_listbox.insert(tk.END, display_text)
 
-                    # Position the autocomplete listbox below the callsign entry
+                    # Position the autocomplete listbox in the reserved row beneath Call
                     self.autocomplete_frame.grid(
-                        row=self.call_entry.grid_info()["row"] + 1,
+                        row=self.call_row + 1,
                         column=1,
                         sticky="w",
                         padx=6,
@@ -774,13 +789,15 @@ class QSOForm(ttk.Frame):
         """Hide the autocomplete listbox."""
         self.autocomplete_frame.grid_remove()
 
-    def _on_adif_file_change(self, *args):
+    def _on_adif_file_change(self, *_args):
         """Handle ADIF file path changes to reload recent QSOs."""
         file_path = self.adif_var.get().strip()
         if file_path and Path(file_path).exists():
+            # New file selected; assume clean state until the next save
+            self._adif_dirty = False
             self._load_recent_qsos(file_path)
 
-    def _select_autocomplete(self, event=None):
+    def _select_autocomplete(self, _event=None):
         """Handle selection from autocomplete listbox."""
         try:
             selection = self.autocomplete_listbox.get(self.autocomplete_listbox.curselection())
@@ -836,8 +853,10 @@ class QSOForm(ttk.Frame):
             fields = q.to_adif_fields()
             append_record(self.adif_var.get(), fields)
 
-            # Create backup after successful save
-            backup_manager.create_backup(self.adif_var.get())
+            # Backup is now performed on application exit, not after each save
+
+            # Mark ADIF as changed so a backup will run on exit
+            self._adif_dirty = True
 
             # Add the QSO to the recent QSOs view
             self._add_qso_to_view(q)
@@ -922,7 +941,7 @@ class QSOForm(ttk.Frame):
                 self.qso_tree.delete(item)
 
             # Read ADIF file
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
             # Parse ADIF content
@@ -980,11 +999,11 @@ class QSOForm(ttk.Frame):
                     key_display = ""
                     if qso.key_type:
                         key_lower = qso.key_type.lower()
-                        if "straight" in key_lower or "sk" == key_lower:
+                        if "straight" in key_lower or key_lower == "sk":
                             key_display = "Straight"
                         elif "bug" in key_lower or "semi" in key_lower:
                             key_display = "Bug"
-                        elif "side" in key_lower or "cootie" in key_lower or "ss" == key_lower:
+                        elif "side" in key_lower or "cootie" in key_lower or key_lower == "ss":
                             key_display = "Sideswiper"
                         else:
                             key_display = qso.key_type.title()
@@ -1014,7 +1033,7 @@ class QSOForm(ttk.Frame):
 
         try:
             # Read and parse ADIF file
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            with open(file_path, encoding="utf-8", errors="ignore") as f:
                 content = f.read()
 
             qsos = parse_adif(content)
@@ -1077,7 +1096,36 @@ class QSOForm(ttk.Frame):
             self.previous_qso_var.set("")
 
     def _quit(self):
-        self.winfo_toplevel().destroy()
+        """Gracefully close the app and create a backup on exit."""
+        try:
+            adif_path = getattr(self, "adif_var", None)
+            file_path = adif_path.get().strip() if adif_path else ""
+            if self._adif_dirty and file_path:
+                if backup_manager.create_backup(file_path):
+                    try:
+                        messagebox.showinfo("Backup", "Backup created on exit.")
+                    except Exception:
+                        # Ignore UI errors during shutdown
+                        pass
+        except Exception as e:
+            print(f"Backup on exit failed: {e}")
+        finally:
+            self.winfo_toplevel().destroy()
+
+    def _backup_now(self):
+        """Create a backup immediately for the selected ADIF file."""
+        try:
+            file_path = self.adif_var.get().strip()
+            if not file_path:
+                messagebox.showwarning("Backup", "No ADIF file selected.")
+                return
+            success = backup_manager.create_backup(file_path)
+            if success:
+                messagebox.showinfo("Backup", "Backup created successfully.")
+            else:
+                messagebox.showerror("Backup", "Backup failed. Check settings and path.")
+        except Exception as e:
+            messagebox.showerror("Backup", f"Backup failed: {e}")
 
     def _configure_backup(self):
         """Simple backup configuration dialog."""
@@ -1092,7 +1140,9 @@ class QSOForm(ttk.Frame):
         # Enable backup checkbox
         backup_enabled_var = tk.BooleanVar(value=self.backup_config.get("backup_enabled", True))
         ttk.Checkbutton(
-            main_frame, text="Enable automatic backups", variable=backup_enabled_var
+            main_frame,
+            text="Enable automatic backups on exit",
+            variable=backup_enabled_var,
         ).pack(anchor="w", pady=5)
 
         # Backup folder
@@ -1121,7 +1171,7 @@ class QSOForm(ttk.Frame):
 
             # Save to file
             self.backup_config_file.parent.mkdir(exist_ok=True)
-            with open(self.backup_config_file, "w") as f:
+            with open(self.backup_config_file, "w", encoding="utf-8") as f:
                 json.dump(self.backup_config, f, indent=2)
 
             config_window.destroy()
@@ -1184,7 +1234,8 @@ class QSOForm(ttk.Frame):
                     # Found duplicate callsign - remove the older spot
                     old_freq = values[2] if len(values) > 2 else "unknown"
                     print(
-                        f"Duplicate filter: Replacing {spot.callsign} {old_freq} MHz with {freq_str} MHz"
+                        "Duplicate filter: Replacing "
+                        f"{spot.callsign} {old_freq} MHz with {freq_str} MHz"
                     )
                     self.spots_tree.delete(child)
                     duplicate_found = True
@@ -1264,6 +1315,8 @@ def main():
     root.minsize(1000, 600)  # Minimum size to see all features
 
     app = QSOForm(root)
+    # Ensure backups run when the user closes the window via the titlebar (X)
+    root.protocol("WM_DELETE_WINDOW", app._quit)
     root.mainloop()
 
 

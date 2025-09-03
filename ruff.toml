@@ -11,3 +11,10 @@ ignore = []
 [lint.per-file-ignores]
 # Tests: allow magic numbers, sys.path tweaks before imports, occasional long lines, and unused loop variables
 "backend/app/tests/**" = ["PLR2004", "E402", "E501", "B007"]
+"gui/tk_qso_form_clean.py" = [
+  "PLR0915", # too many statements
+  "PLR0912", # too many branches
+  "PLR2004", # magic values
+  "SIM102",  # nested ifs
+  "SIM105"   # try/except/pass suppression
+]
