@@ -581,14 +581,17 @@ class QSOForm(ttk.Frame):
         # Update roster status display
         self._update_roster_status_display()
 
-        # Add a stretchable spacer row so the decorative image anchors at the bottom
+        # Add a dedicated spacer row below status to push the image to the bottom
+        spacer_row = r + 1
+        spacer = ttk.Frame(parent)
+        spacer.grid(row=spacer_row, column=0, columnspan=2, sticky="nsew")
         try:
-            parent.rowconfigure(r, weight=1)
+            parent.rowconfigure(spacer_row, weight=1)
         except Exception:
             pass
-        r += 1
+        r = spacer_row + 1
 
-        # Decorative bug image at lower-left (always reserve space at bottom)
+        # Decorative bug image at lower-left (always reserved at bottom)
         self._add_decorative_bug_image(parent, row=r)
         r += 1
 
