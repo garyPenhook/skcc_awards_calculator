@@ -193,30 +193,56 @@ class SKCCClusterClient:
                     if speed_match:
                         speed = int(speed_match.group(1))
 
-                # Extract club memberships mentioned in the spot line.
-                # We match a set of known clubs case-insensitively.
-                known_clubs = [
-                    "SKCC",
-                    "CWOPS",  # CWops
-                    "CWO",  # sometimes abbreviated
-                    "A1A",  # ARRL A-1 Operators Club
-                    "FISTS",
-                    "NAQCC",
-                    "FOC",
-                    "AGCW",
-                    "HSC",
-                    "VHSC",
-                    "EHSC",
-                ]
-                clubs_found: List[str] = []
-                lower_line = line.lower()
-                for tag in known_clubs:
-                    if tag.lower() in lower_line:
-                        # Normalize CWops variants to CWOPS
-                        normalized = "CWOPS" if tag in ("CWOPS", "CWO") else tag
-                        if normalized not in clubs_found:
-                            clubs_found.append(normalized)
+                # Extract club memberships mentioned in the spot line using
+                # common synonyms/variants and normalize names.
+                # This helps when gateways use different spellings (e.g. "CWops", "CW Ops").
+                club_patterns: Dict[str, List[str]] = {
+                    "SKCC": ["skcc"],
+                    "CWOPS": ["cwops", "cw ops", "cw-ops", "cwo"],
+                    "A1A": [
+                        "a1a",
+                        "a-1",
+                        "a1-op",
+                        "a1 op",
+                        "a-1 op",
+                        "arrl a-1",
+                        "a1 operators",
+                        "a-1 operators",
+                    ],
+                    "FISTS": ["fists"],
+                    "NAQCC": ["naqcc"],
+                    "FOC": ["foc"],
+                    "AGCW": ["agcw"],
+                    "HSC": ["hsc"],
+                    "VHSC": ["vhsc"],
+                    "EHSC": ["ehsc"],
+                    # A few other frequent CW clubs that sometimes appear
+                    "QRP-ARCI": ["qrparci", "qrp-arci", "qrp arci"],
+                    "BUG": ["bug club"],  # rare tag
+                }
 
+                clubs_found_set: set[str] = set()
+                lower_line = line.lower()
+
+                # Try to extract from explicit key-value like `clubs: A1A,CWOPS`
+                with suppress(Exception):
+                    kv_match = re.search(r"clubs?[:=]\s*([A-Za-z0-9\- ,;/]+)", lower_line)
+                    if kv_match:
+                        raw = kv_match.group(1)
+                        for token in re.split(r"[;,]", raw):
+                            t = token.strip().lower()
+                            if not t:
+                                continue
+                            for norm, pats in club_patterns.items():
+                                if any(p in t for p in pats):
+                                    clubs_found_set.add(norm)
+
+                # Fallback: substring search across entire line
+                for norm, pats in club_patterns.items():
+                    if any(p in lower_line for p in pats):
+                        clubs_found_set.add(norm)
+
+                clubs_found: List[str] = sorted(clubs_found_set)
                 clubs_text = ", ".join(clubs_found) if clubs_found else None
 
                 # Create spot

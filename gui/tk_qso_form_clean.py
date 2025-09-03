@@ -642,16 +642,14 @@ class QSOForm(ttk.Frame):
         cluster_frame = ttk.LabelFrame(parent, text="Reverse Beacon Network spots", padding=10)
         cluster_frame.grid(row=1, column=0, sticky="nsew", pady=(5, 0))
         cluster_frame.columnconfigure(0, weight=1)
-        cluster_frame.rowconfigure(1, weight=1)  # Spots tree gets the space
+        cluster_frame.rowconfigure(1, weight=1)
 
         # RBN control frame
         cluster_control_frame = ttk.Frame(cluster_frame)
         cluster_control_frame.grid(row=0, column=0, sticky="ew", pady=(0, 5))
 
         self.cluster_connect_btn = ttk.Button(
-            cluster_control_frame,
-            text="Connect to RBN",
-            command=self._toggle_cluster,
+            cluster_control_frame, text="Connect to RBN", command=self._toggle_cluster
         )
         self.cluster_connect_btn.pack(side=tk.LEFT, padx=(0, 10))
 
@@ -667,7 +665,10 @@ class QSOForm(ttk.Frame):
         # RBN spots treeview (add SKCC membership and Clubs columns)
         spots_columns = ("Time", "Call", "SKCC", "Clubs", "Freq", "Band", "Spotter", "SNR")
         self.spots_tree = ttk.Treeview(
-            cluster_frame, columns=spots_columns, show="headings", height=8
+            cluster_frame,
+            columns=spots_columns,
+            show="headings",
+            height=8,
         )
 
         # Configure spots column headings and widths
@@ -683,8 +684,8 @@ class QSOForm(ttk.Frame):
         self.spots_tree.column("Time", width=70, minwidth=60)
         self.spots_tree.column("Call", width=90, minwidth=80)
         self.spots_tree.column("SKCC", width=90, minwidth=70)
-        self.spots_tree.column("Clubs", width=120, minwidth=90)
-        self.spots_tree.column("Freq", width=100, minwidth=90)  # Wider for 3 decimal places
+        self.spots_tree.column("Clubs", width=170, minwidth=120)
+        self.spots_tree.column("Freq", width=100, minwidth=90)
         self.spots_tree.column("Band", width=60, minwidth=50)
         self.spots_tree.column("Spotter", width=100, minwidth=80)
         self.spots_tree.column("SNR", width=60, minwidth=40)
@@ -1450,12 +1451,17 @@ class QSOForm(ttk.Frame):
             # Clubs from the spot feed (e.g., CWOPS, A1A, FISTS)
             clubs_display = getattr(spot, "clubs", None) or ""
 
-            # Ensure SKCC appears in Clubs if the roster shows an SKCC number
-            # (Some cluster feeds may not include explicit club tags.)
+            # Merge/deduplicate: keep existing clubs and ensure SKCC is added when member.
             try:
+                clubs_set = set(c.strip().upper() for c in clubs_display.split(",") if c.strip())
                 if skcc_display:
-                    if "skcc" not in clubs_display.lower():
-                        clubs_display = (clubs_display + ", SKCC").strip(", ")
+                    clubs_set.add("SKCC")
+                # Display in a stable order with SKCC first if present
+                ordered = [
+                    *(["SKCC"] if "SKCC" in clubs_set else []),
+                    *sorted(x for x in clubs_set if x != "SKCC"),
+                ]
+                clubs_display = ", ".join(ordered)
             except Exception:
                 pass
 
