@@ -1450,6 +1450,15 @@ class QSOForm(ttk.Frame):
             # Clubs from the spot feed (e.g., CWOPS, A1A, FISTS)
             clubs_display = getattr(spot, "clubs", None) or ""
 
+            # Ensure SKCC appears in Clubs if the roster shows an SKCC number
+            # (Some cluster feeds may not include explicit club tags.)
+            try:
+                if skcc_display:
+                    if "skcc" not in clubs_display.lower():
+                        clubs_display = (clubs_display + ", SKCC").strip(", ")
+            except Exception:
+                pass
+
             # Insert new spot at the top of the tree
             item = self.spots_tree.insert(
                 "",
