@@ -12,5 +12,16 @@
         "./backend/app"
     ],
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic"
+    "python.analysis.typeCheckingMode": "basic",
+    "python.defaultInterpreterPath": "${workspaceFolder}\\.venv313\\Scripts\\python.exe",
+    "black-formatter.importStrategy": "fromEnvironment",
+    "black-formatter.interpreter": [
+        "${workspaceFolder}\\.venv313\\Scripts\\python.exe"
+    ],
+    "python.formatting.provider": "none",
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
+    }
 }

@@ -23,6 +23,7 @@ from models.qso import QSO  # noqa: E402
 from utils.backup_manager import backup_manager  # noqa: E402
 from utils.cluster_client import ClusterSpot, SKCCClusterClient  # noqa: E402
 from utils.roster_manager import RosterManager  # noqa: E402
+from utils.space_weather import summarize_for_ui  # noqa: E402
 
 # Optional Pillow import for better image format support and resizing
 try:  # noqa: E402
@@ -401,6 +402,10 @@ class QSOForm(ttk.Frame):
 
         # Build right panel with QSO history and Reverse Beacon Network spots
         self._build_right_panel(right_frame)
+        # Add Space Weather panel on the bottom (full width)
+        self._build_space_weather_panel()
+        # Kick off periodic refresh shortly after UI is ready
+        self.after(100, self._refresh_space_weather)
 
     def _build_qso_form(self, parent):
         """Build the QSO entry form in the left panel."""
@@ -702,6 +707,158 @@ class QSOForm(ttk.Frame):
 
         # Bind double-click to auto-fill frequency
         self.spots_tree.bind("<Double-Button-1>", self._on_spot_double_click)
+
+    def _build_space_weather_panel(self):
+        """Build a small panel showing NOAA SWPC space weather now-cast."""
+        # Create a top-level frame below the main content
+        container = ttk.LabelFrame(self.master, text="Space Weather (NOAA SWPC)", padding=10)
+        # Place it at bottom expanding horizontally
+        container.pack(side=tk.BOTTOM, fill="x", padx=8, pady=(0, 8))
+
+        # Labels
+        self.kp_var = tk.StringVar(value="Kp —")
+        self.mag_var = tk.StringVar(value="Bz/Bt —")
+        self.xray_var = tk.StringVar(value="X-ray —")
+        self.sfi_var = tk.StringVar(value="SFI —")
+        self.aindex_var = tk.StringVar(value="A —")
+        self.sw_updated_var = tk.StringVar(value="Updated —")
+
+        row = ttk.Frame(container)
+        row.pack(fill="x")
+        self._kp_label = ttk.Label(
+            row,
+            textvariable=self.kp_var,
+            font=("Consolas", 10, "bold"),
+            foreground="green",
+        )
+        self._kp_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._mag_label = ttk.Label(row, textvariable=self.mag_var)
+        self._mag_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._x_label = ttk.Label(row, textvariable=self.xray_var)
+        self._x_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._sfi_label = ttk.Label(row, textvariable=self.sfi_var)
+        self._sfi_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._a_label = ttk.Label(row, textvariable=self.aindex_var)
+        self._a_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._upd_label = ttk.Label(row, textvariable=self.sw_updated_var, foreground="gray")
+        self._upd_label.pack(side=tk.LEFT)
+
+        # Attach basic tooltips for quick explanations
+        self._add_tooltip(self._kp_label, "Kp (geomagnetic activity): lower is better")
+        self._add_tooltip(self._mag_label, "Bz/Bt (IMF nT): negative Bz can worsen conditions")
+        self._add_tooltip(self._x_label, "GOES X-ray: flare level (A/B/C/M/X)")
+        self._add_tooltip(self._sfi_label, "SFI (F10.7 cm solar flux): higher favors higher bands")
+        self._add_tooltip(self._a_label, "A-index (24h geomagnetic activity): lower is better")
+
+        # Manual refresh button
+        ttk.Button(container, text="Refresh", command=self._refresh_space_weather).pack(
+            side=tk.RIGHT
+        )
+
+    def _refresh_space_weather(self):
+        """Refresh space weather values in a background thread and update UI."""
+
+        def worker():
+            try:
+                kp_text, mag_text, xray_text, sfi_text, a_text, updated = summarize_for_ui()
+            except Exception:
+                kp_text, mag_text, xray_text, sfi_text, a_text, updated = (
+                    "Kp —",
+                    "Bz/Bt —",
+                    "X-ray —",
+                    "SFI —",
+                    "A —",
+                    "Updated —",
+                )
+
+            # Push updates on main thread
+            self.after(0, lambda: self.kp_var.set(kp_text))
+            self.after(0, lambda: self.mag_var.set(mag_text))
+            self.after(0, lambda: self.xray_var.set(xray_text))
+            self.after(0, lambda: self.sfi_var.set(sfi_text))
+            self.after(0, lambda: self.aindex_var.set(a_text))
+            self.after(0, lambda: self.sw_updated_var.set(updated))
+            # Color code based on values contained in the text (simple parse)
+            self.after(0, self._color_code_space_weather)
+
+            # Schedule next refresh in 60 seconds
+            self.after(60_000, self._refresh_space_weather)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+    def _color_code_space_weather(self) -> None:
+        """Apply simple color coding to Kp, A-index, and Bz values based on text."""
+        try:
+            import re
+
+            # Kp coloring
+            kp = None
+            m = re.search(r"Kp\s+(\d+(?:\.\d)?)", self.kp_var.get())
+            if m:
+                kp = float(m.group(1))
+            if kp is None:
+                self._kp_label.configure(foreground="gray")
+            elif kp < 4:
+                self._kp_label.configure(foreground="green")
+            elif kp < 6:
+                self._kp_label.configure(foreground="orange")
+            else:
+                self._kp_label.configure(foreground="red")
+
+            # A-index coloring
+            aidx = None
+            m = re.search(r"\bA\s+(\d+(?:\.\d)?)", self.aindex_var.get())
+            if m:
+                aidx = float(m.group(1))
+            if aidx is None:
+                self._a_label.configure(foreground="gray")
+            elif aidx <= 10:
+                self._a_label.configure(foreground="green")
+            elif aidx <= 20:
+                self._a_label.configure(foreground="orange")
+            else:
+                self._a_label.configure(foreground="red")
+
+            # Bz coloring (from mag text)
+            bz = None
+            m = re.search(r"Bz\s+(-?\d+(?:\.\d)?)\s*nT", self.mag_var.get())
+            if m:
+                bz = float(m.group(1))
+            if bz is None:
+                self._mag_label.configure(foreground="gray")
+            elif bz < -5:
+                self._mag_label.configure(foreground="red")
+            elif bz < 0:
+                self._mag_label.configure(foreground="orange")
+            else:
+                self._mag_label.configure(foreground="green")
+        except Exception:
+            # Keep UI stable even if parsing fails
+            pass
+
+    def _add_tooltip(self, widget, text: str) -> None:
+        """Attach a lightweight tooltip to a widget (enter/leave events)."""
+        try:
+            tip = tk.Toplevel(widget)
+            tip.wm_overrideredirect(True)
+            tip.withdraw()
+            lbl = ttk.Label(tip, text=text, background="#ffffe0", relief="solid", borderwidth=1)
+            lbl.pack(ipadx=4, ipady=2)
+
+            def show_tip(_e):
+                # Position near the cursor
+                x = widget.winfo_pointerx() + 12
+                y = widget.winfo_pointery() + 12
+                tip.wm_geometry(f"+{x}+{y}")
+                tip.deiconify()
+
+            def hide_tip(_e):
+                tip.withdraw()
+
+            widget.bind("<Enter>", show_tip)
+            widget.bind("<Leave>", hide_tip)
+        except Exception:
+            pass
 
     def _update_roster_status_display(self):
         """Update the roster status display in the main form."""
