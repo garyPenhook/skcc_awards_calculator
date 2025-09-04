@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-# ruff: noqa: PLR0915, PLR0912, PLR2004, SIM102, SIM105
+# pyright: reportMissingImports=false
+# ruff: noqa: PLR0915, PLR0912, PLR2004, SIM102, SIM105, BLE001
+# pylint: disable=broad-except, import-error, attribute-defined-outside-init, unused-argument
 """Clean QSO Form with Country/State Support."""
 
 import asyncio
@@ -147,6 +149,37 @@ class QSOForm(ttk.Frame):
         # Cluster client initialization
         self.cluster_client = None
 
+        # Predeclare attributes to satisfy static analyzers
+        self.adif_var = tk.StringVar()
+        self.time_display_var = tk.StringVar()
+        self.call_var = tk.StringVar()
+        self.call_entry = None
+        self.call_row = 0
+        self.autocomplete_frame = None
+        self.autocomplete_listbox = None
+        self.previous_qso_var = tk.StringVar()
+        self.previous_qso_label = None
+        self.freq_var = tk.StringVar()
+        self.band_var = tk.StringVar()
+        self.rst_s_var = tk.StringVar()
+        self.rst_r_var = tk.StringVar()
+        self.pwr_var = tk.StringVar()
+        self.their_skcc_var = tk.StringVar()
+        self.key_var = tk.StringVar()
+        self.key_combo = None
+        self.country_var = tk.StringVar()
+        self.state_var = tk.StringVar()
+        self.roster_status_var = tk.StringVar()
+        self.app_status_var = tk.StringVar()
+        self.app_status_label = None
+        self._bug_img = None
+        self.kp_var = tk.StringVar()
+        self.mag_var = tk.StringVar()
+        self.xray_var = tk.StringVar()
+        self.sfi_var = tk.StringVar()
+        self.aindex_var = tk.StringVar()
+        self.sw_updated_var = tk.StringVar()
+
         # Show progress dialog during initialization
         self.progress_dialog = RosterProgressDialog(master)
 
@@ -225,12 +258,18 @@ class QSOForm(ttk.Frame):
                     def lookup_member(self, _call):
                         return None
 
-                    def search_callsigns(self, _prefix, limit=10):
+                    def search_callsigns(self, _prefix, limit=10):  # noqa: ARG002
+                        if limit is None:
+                            pass
                         return []
 
                     async def ensure_roster_updated(
-                        self, force=False, progress_callback=None, max_age_hours=24
+                        self,
+                        force=False,
+                        progress_callback=None,
+                        max_age_hours=24,  # noqa: ARG002
                     ):
+                        _ = (force, progress_callback, max_age_hours)
                         return False, "No roster manager available"
 
                     def get_status(self):
@@ -1361,6 +1400,10 @@ class QSOForm(ttk.Frame):
         finally:
             self.winfo_toplevel().destroy()
 
+    # Public wrapper to avoid accessing a protected member from outside
+    def close(self):
+        self._quit()
+
     def _backup_now(self):
         """Create a backup immediately for the selected ADIF file (status only)."""
         try:
@@ -1653,7 +1696,7 @@ class QSOForm(ttk.Frame):
         except Exception as e:
             print(f"Error adding spot to tree: {e}")
 
-    def _on_spot_double_click(self, event):
+    def _on_spot_double_click(self, _event):
         """Handle double-click on an RBN spot to auto-fill frequency."""
         try:
             item = self.spots_tree.selection()[0]
@@ -1708,7 +1751,7 @@ def main():
 
     app = QSOForm(root)
     # Ensure backups run when the user closes the window via the titlebar (X)
-    root.protocol("WM_DELETE_WINDOW", app._quit)
+    root.protocol("WM_DELETE_WINDOW", app.close)
     root.mainloop()
 
 

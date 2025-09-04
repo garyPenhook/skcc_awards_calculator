@@ -1,4 +1,5 @@
 # ruff: noqa: PLW0603, BLE001
+# pylint: disable=global-statement,broad-exception-caught
 """NOAA SWPC space weather helpers.
 
 Lightweight fetchers for up-to-the-minute radio-relevant indicators:
@@ -118,7 +119,7 @@ def get_space_weather(force: bool = False) -> SpaceWeatherSnapshot:
 
     If `force` is False and cache is fresh, returns cached data.
     """
-    global _cache_value, _cache_time
+    global _cache_value, _cache_time  # noqa: PLW0603  # pylint: disable=global-statement
 
     if (
         not force

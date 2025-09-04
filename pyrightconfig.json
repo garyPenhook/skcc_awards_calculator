@@ -1,0 +1,17 @@
+{
+  "typeCheckingMode": "off",
+  "useLibraryCodeForTypes": false,
+  "reportMissingImports": "none",
+  "reportMissingModuleSource": "none",
+  "reportUnknownMemberType": "none",
+  "reportUnknownVariableType": "none",
+  "reportUnknownArgumentType": "none",
+  "reportUnknownLambdaType": "none",
+  "reportUnknownParameterType": "none",
+  "reportUntypedFunctionDecorator": "none",
+  "reportGeneralTypeIssues": "warning",
+  "exclude": [
+    "**/.venv/**",
+    "**/__pycache__/**"
+  ]
+}

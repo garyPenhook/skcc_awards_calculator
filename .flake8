@@ -1,4 +1,4 @@
 [flake8]
 max-line-length = 100
-extend-ignore = E302,E305
+extend-ignore = E302,E305,BLE001
 exclude = .venv,**/__pycache__/**

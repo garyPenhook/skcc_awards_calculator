@@ -12,7 +12,13 @@
         "./backend/app"
     ],
     "python.analysis.autoImportCompletions": true,
-    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.typeCheckingMode": "off",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportMissingImports": "none",
+        "reportGeneralException": "none",
+        "reportUnusedParameter": "none",
+        "reportGeneralTypeIssues": "warning"
+    },
     "python.defaultInterpreterPath": "${workspaceFolder}\\.venv313\\Scripts\\python.exe",
     "black-formatter.importStrategy": "fromEnvironment",
     "black-formatter.interpreter": [

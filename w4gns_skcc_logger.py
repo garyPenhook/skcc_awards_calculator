@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# ruff: noqa: BLE001
+# pylint: disable=broad-except, import-error, too-many-branches
 """W4GNS SKCC Logger - QSO Logging Application."""
 
 import os
@@ -97,6 +99,7 @@ def main():
         if os.name == "nt":
             _ensure_tcl_tk_paths()
         # Import and run the clean QSO form
+        # pylint: disable=import-outside-toplevel  # noqa: PLC0415
         from gui.tk_qso_form_clean import main as gui_main
 
         gui_main()
