@@ -2,9 +2,13 @@
 echo Starting SKCC Awards Calculator...
 echo.
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
+REM Detect a usable Python command (prefer python, fallback to Windows launcher py -3)
+set "PYCMD="
+python --version >nul 2>&1 && set "PYCMD=python"
+if not defined PYCMD (
+    py -3 --version >nul 2>&1 && set "PYCMD=py -3"
+)
+if not defined PYCMD (
     echo ERROR: Python is not installed or not in PATH
     echo Please run install_simple.bat first
     pause
@@ -12,7 +16,7 @@ if errorlevel 1 (
 )
 
 REM Try to import required modules
-python -c "import httpx, bs4" >nul 2>&1
+%PYCMD% -c "import httpx, bs4" >nul 2>&1
 if errorlevel 1 (
     echo ERROR: Required packages not installed
     echo Please run install_simple.bat first
@@ -21,4 +25,4 @@ if errorlevel 1 (
 )
 
 REM Run the GUI
-python scripts\gui.py
+%PYCMD% scripts\gui.py

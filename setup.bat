@@ -3,24 +3,29 @@ echo SKCC Awards Calculator - Windows Setup
 echo =====================================
 echo.
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
+REM Detect a usable Python command (prefer python, fallback to Windows launcher py -3)
+set "PYCMD="
+python --version >nul 2>&1 && set "PYCMD=python"
+if not defined PYCMD (
+    py -3 --version >nul 2>&1 && set "PYCMD=py -3"
+)
+if not defined PYCMD (
     echo ERROR: Python is not installed or not in PATH
-    echo Please install Python from https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation
+    echo - If you have Python installed, enable the Windows launcher during install OR add Python to PATH.
+    echo - Otherwise, install Python from https://www.python.org/downloads/
+    echo   (Check "Add python.exe to PATH" and "Install launcher for all users")
     pause
     exit /b 1
 )
 
 echo Python found: 
-python --version
+%PYCMD% --version
 echo.
 
 REM Create virtual environment if it doesn't exist
 if not exist ".venv" (
     echo Creating virtual environment...
-    python -m venv .venv
+    %PYCMD% -m venv .venv
     if errorlevel 1 (
         echo ERROR: Failed to create virtual environment
         pause
@@ -34,7 +39,7 @@ call .venv\Scripts\activate.bat
 
 REM Install requirements
 echo Installing required packages...
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 if errorlevel 1 (
     echo ERROR: Failed to install requirements
     pause

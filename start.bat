@@ -12,9 +12,17 @@ set /p choice="Enter choice (1-4): "
 
 if "%choice%"=="1" (
     echo Starting GUI...
+    if not exist ".venv" (
+        echo Virtual environment not found. Running setup first...
+        call setup.bat
+    )
     call run_gui.bat
 ) else if "%choice%"=="2" (
     echo Starting Debug Mode...
+    if not exist ".venv" (
+        echo Virtual environment not found. Running setup first...
+        call setup.bat
+    )
     call run_debug.bat
 ) else if "%choice%"=="3" (
     echo Running Setup...

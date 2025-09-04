@@ -6,18 +6,22 @@ echo This will install the required packages for SKCC Awards Calculator.
 echo Only 2 packages are needed: httpx and beautifulsoup4
 echo.
 
-REM Check if Python is installed
-python --version >nul 2>&1
-if errorlevel 1 (
+REM Detect a usable Python command (prefer python, fallback to Windows launcher py -3)
+set "PYCMD="
+python --version >nul 2>&1 && set "PYCMD=python"
+if not defined PYCMD (
+    py -3 --version >nul 2>&1 && set "PYCMD=py -3"
+)
+if not defined PYCMD (
     echo ERROR: Python is not installed or not in PATH
     echo Please install Python from https://www.python.org/downloads/
-    echo Make sure to check "Add Python to PATH" during installation
+    echo Make sure to check "Add Python to PATH" and "Install launcher" during installation
     pause
     exit /b 1
 )
 
 echo Python found: 
-python --version
+%PYCMD% --version
 echo.
 
 echo Installing required packages...
@@ -25,7 +29,7 @@ echo - httpx (for downloading SKCC roster)
 echo - beautifulsoup4 (for parsing web pages)
 echo.
 
-pip install httpx==0.27.0 beautifulsoup4==4.12.3
+%PYCMD% -m pip install httpx==0.27.0 beautifulsoup4==4.12.3
 
 if errorlevel 1 (
     echo ERROR: Failed to install packages
