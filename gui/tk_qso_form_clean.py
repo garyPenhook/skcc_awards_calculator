@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # pyright: reportMissingImports=false
 # ruff: noqa: PLR0915, PLR0912, PLR2004, SIM102, SIM105, BLE001
-# pylint: disable=broad-except, import-error, attribute-defined-outside-init, unused-argument
+# pylint: disable=broad-except, import-error, attribute-defined-outside-init,
+# pylint: disable=unused-argument, too-many-lines
 """Clean QSO Form with Country/State Support."""
 
 import asyncio
@@ -56,86 +57,7 @@ except ImportError:
         return []
 
 
-class RosterProgressDialog:
-    """Progress dialog for roster updates."""
-
-    def __init__(self, parent):
-        self.parent = parent
-        self.dialog = tk.Toplevel(parent)
-        self.dialog.title("W4GNS SKCC Logger - Initializing")
-        self.dialog.geometry("400x200")
-        self.dialog.resizable(False, False)
-
-        # Center the dialog
-        self.dialog.transient(parent)
-        self.dialog.grab_set()
-
-        # Center on parent
-        self.dialog.geometry("+%d+%d" % (parent.winfo_rootx() + 50, parent.winfo_rooty() + 50))
-
-        # Create widgets
-        main_frame = ttk.Frame(self.dialog, padding=20)
-        main_frame.pack(fill="both", expand=True)
-
-        ttk.Label(main_frame, text="W4GNS SKCC Logger", font=("Arial", 14, "bold")).pack(
-            pady=(0, 10)
-        )
-
-        self.status_label = ttk.Label(main_frame, text="Checking member roster...")
-        self.status_label.pack(pady=5)
-
-        self.progress = ttk.Progressbar(main_frame, mode="indeterminate")
-        self.progress.pack(fill="x", pady=10)
-        self.progress.start()
-
-        self.detail_label = ttk.Label(main_frame, text="", foreground="gray")
-        self.detail_label.pack(pady=5)
-
-        # Status text area
-        self.status_text = tk.Text(main_frame, height=4, width=50, font=("Consolas", 8))
-        self.status_text.pack(fill="both", expand=True, pady=(10, 0))
-
-        # Close button (initially hidden)
-        self.close_button = ttk.Button(main_frame, text="Close", command=self.close)
-        self.close_button.pack_forget()  # Hidden initially
-
-    def update_status(self, message, detail=""):
-        """Update the status message and details."""
-        if not self.dialog:
-            return
-
-        self.status_label.config(text=message)
-        if detail:
-            self.detail_label.config(text=detail)
-
-        # Add to status log
-        timestamp = datetime.now().strftime("%H:%M:%S")
-        self.status_text.insert(tk.END, f"[{timestamp}] {message}\n")
-        if detail:
-            self.status_text.insert(tk.END, f"           {detail}\n")
-        self.status_text.see(tk.END)
-        self.dialog.update()
-
-    def show_final_status(self, message, detail=""):
-        """Show final status and enable close button."""
-        if not self.dialog:
-            return
-
-        self.update_status(message, detail)
-        self.progress.stop()
-        self.close_button.pack(pady=(10, 0))  # Show close button
-
-    def close(self):
-        """Close the progress dialog."""
-        try:
-            if hasattr(self, "progress") and self.progress:
-                self.progress.stop()
-            if hasattr(self, "dialog") and self.dialog:
-                self.dialog.destroy()
-                self.dialog = None
-        except tk.TclError:
-            # Dialog already destroyed
-            pass
+from gui.components.roster_progress import RosterProgressDialog  # noqa: E402
 
 
 class QSOForm(ttk.Frame):
