@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from adif_io.adif_writer import append_record  # noqa: E402
+from gui.components.decor_image import add_decorative_bug_image  # noqa: E402
 from models.key_type import DISPLAY_LABELS, KeyType, normalize  # noqa: E402
 from models.qso import QSO  # noqa: E402
 from utils.backup_manager import backup_manager  # noqa: E402
@@ -30,7 +31,7 @@ from utils.space_weather import summarize_for_ui  # noqa: E402
 
 # Optional Pillow import for better image format support and resizing
 try:  # noqa: E402
-    from PIL import Image, ImageTk  # type: ignore
+    from PIL import Image, ImageTk  # type: ignore  # noqa: F401
 except Exception:  # noqa: E402, BLE001
     Image = None  # type: ignore
     ImageTk = None  # type: ignore
@@ -558,7 +559,7 @@ class QSOForm(ttk.Frame):
         r = spacer_row + 1
 
         # Decorative bug image at lower-left (always reserved at bottom)
-        self._add_decorative_bug_image(parent, row=r)
+        add_decorative_bug_image(parent, row=r, assets_dir=ASSETS_DIR)
         r += 1
 
     def _build_right_panel(self, parent):
@@ -1425,67 +1426,6 @@ class QSOForm(ttk.Frame):
         folder = filedialog.askdirectory(title="Select backup folder")
         if folder:
             var.set(folder)
-
-    def _add_decorative_bug_image(self, parent, row: int) -> None:
-        """Try to place a decorative bug image at the lower-left of the form.
-
-        Looks for an image file in the assets directory under common names
-        (bug.png/jpg, morse_bug.png/jpg). If Pillow is available, resizes the
-        image to fit nicely; otherwise attempts to load PNG via Tk.
-        """
-        # Prefer bug.png, fall back to bug.jpg
-        img_path = (
-            BUG_IMAGE_PRIMARY
-            if BUG_IMAGE_PRIMARY.exists()
-            else (BUG_IMAGE_FALLBACK if BUG_IMAGE_FALLBACK.exists() else None)
-        )
-
-        max_w, max_h = 200, 150  # target bounds for decoration
-
-        # Prefer Pillow if available for formats like JPG and for resizing
-        if img_path and Image and ImageTk:
-            try:
-                with Image.open(img_path) as im:  # type: ignore[attr-defined]
-                    # Preserve aspect ratio
-                    im.thumbnail((max_w, max_h))
-                    self._bug_img = ImageTk.PhotoImage(im)  # type: ignore[attr-defined]
-            except Exception as e:  # Fallback to Tk native for PNG
-                print(f"Pillow failed to load image '{img_path.name}': {e}")
-                self._bug_img = None
-        else:
-            self._bug_img = None
-
-        if self._bug_img is None and img_path is not None:
-            # Try Tk native loader (PNG supported on most Tk builds)
-            if img_path.suffix.lower() in {".png", ".gif"}:
-                try:
-                    self._bug_img = tk.PhotoImage(file=str(img_path))
-                except Exception as e:
-                    print(f"Tk couldn't load image '{img_path.name}': {e}")
-                    self._bug_img = None
-            else:
-                # JPG without Pillow cannot be loaded
-                self._bug_img = None
-
-        # Place image in a small frame to keep it anchored
-        deco_frame = ttk.Frame(parent)
-        deco_frame.grid(row=row, column=0, columnspan=2, sticky="sw", padx=6, pady=(8, 0))
-        if self._bug_img is not None:
-            ttk.Label(deco_frame, image=self._bug_img).pack(anchor="w")
-        else:
-            # Fallback: instruct user to add the image file
-            msg = (
-                "Add your bug image at 'assets/bug.png' (or bug.jpg). "
-                "PNG will load without Pillow; JPG requires Pillow."
-            )
-            ttk.Label(
-                deco_frame,
-                text=msg,
-                foreground="gray",
-                font=("Arial", 8, "italic"),
-                wraplength=300,
-                justify="left",
-            ).pack(anchor="w")
 
     def _toggle_cluster(self):
         """Toggle RBN connection on/off."""
