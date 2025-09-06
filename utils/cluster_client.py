@@ -54,15 +54,32 @@ class ClusterSpot:
 
 
 class SKCCClusterClient:
-    """Connects to rbn.telegraphy.de for SKCC-filtered cluster spots."""
+    """Client for CW club enriched RBN feed (rbn.telegraphy.de).
+
+    Previous implementation forced SKCC-only filtering. This version allows
+    requesting ALL clubs (default) or a narrowed list by passing a list of
+    normalized club identifiers.
+
+    If ``include_clubs`` is None (default) a "set/clubs all" command is sent.
+    If it is a non-empty list, a comma separated list is sent (e.g.:
+    "set/clubs skcc,cwops,a1a"). If the underlying gateway syntax differs,
+    the user can set ``raw_clubs_command`` to override the automatic command
+    construction entirely.
+    """
 
     def __init__(
         self,
         callsign: str,
         spot_callback: Optional[Callable[[ClusterSpot], None]] = None,
+        include_clubs: Optional[List[str]] = None,
+        raw_clubs_command: Optional[str] = None,
+        nodupes: bool = True,
     ):
         self.callsign = callsign.upper()
         self.spot_callback = spot_callback
+        self.include_clubs = include_clubs
+        self.raw_clubs_command = raw_clubs_command
+        self.nodupes = nodupes
         self.connected = False
         self.socket = None
         self.thread = None
@@ -80,12 +97,28 @@ class SKCCClusterClient:
             self.socket.settimeout(10)
             self.socket.connect(("rbn.telegraphy.de", 7000))
 
-            # Send login
+            # Send login first
             self._send_command(self.callsign)
 
-            # Set up filtering for SKCC only
-            self._send_command("set/clubs")  # Enable club filtering
-            self._send_command("set/nodupes")  # Reduce duplicates
+            # Configure club filtering. Precedence:
+            # 1. Explicit raw command if provided
+            # 2. include_clubs list if provided (comma joined)
+            # 3. "all" (default – show all available club annotations)
+            try:
+                if self.raw_clubs_command:
+                    self._send_command(self.raw_clubs_command)
+                elif self.include_clubs is None:
+                    self._send_command("set/clubs all")
+                else:
+                    normalized = [c.strip().lower() for c in self.include_clubs if c.strip()]
+                    if normalized:
+                        self._send_command("set/clubs " + ",".join(normalized))
+            except (OSError, ValueError):  # noqa: BLE001 - intentionally narrow and silent fallback
+                pass
+
+            # Reduce duplicates if requested
+            if self.nodupes:
+                self._send_command("set/nodupes")
 
             self.connected = True
             self.running = True
@@ -155,7 +188,7 @@ class SKCCClusterClient:
 
         print("Cluster reading thread stopped")
 
-    def _process_line(self, line: str):
+    def _process_line(self, line: str):  # noqa: PLR0912 - complex parsing kept explicit for clarity
         """Process a line from the cluster."""
         # Look for DX spots
         match = self.spot_pattern.match(line)

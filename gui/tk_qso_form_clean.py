@@ -1584,7 +1584,11 @@ class QSOForm(ttk.Frame):
             if not callsign:
                 return
 
-            self.cluster_client = SKCCClusterClient(callsign, self._on_new_spot)
+            self.cluster_client = SKCCClusterClient(
+                callsign,
+                self._on_new_spot,
+                include_clubs=None,  # None => request all club annotations
+            )
 
             if self.cluster_client.connect():
                 self.cluster_connect_btn.config(text="Disconnect")
@@ -1734,8 +1738,10 @@ class QSOForm(ttk.Frame):
 
         callsign = simpledialog.askstring(
             "RBN Connection",
-            "Enter your callsign for RBN connection:\n(e.g., W4GNS-SKCC)",
-            initialvalue="W4GNS-SKCC",
+            (
+                "Enter your callsign (you may append -SKCC / -TEST etc.; "
+                "leave suffix off for plain call):"
+            ),
         )
 
         if callsign:
