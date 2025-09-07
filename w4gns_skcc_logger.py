@@ -1,8 +1,18 @@
 #!/usr/bin/env python3
 # ruff: noqa: BLE001
 # pylint: disable=broad-except, import-error, too-many-branches
-"""W4GNS SKCC Logger - QSO Logging Application."""
+"""Integrated SKCC Logger + Awards Manager launcher.
 
+Defaults to launching the combined tabbed GUI (Logger + Awards). A legacy
+logger-only mode is still available via the ``--legacy-logger`` flag.
+
+Usage:
+    python w4gns_skcc_logger.py              # combined GUI (recommended)
+    python w4gns_skcc_logger.py --legacy     # legacy logger-only form
+    python w4gns_skcc_logger.py --help       # show options
+"""
+
+import argparse
 import os
 import sys
 import traceback
@@ -92,24 +102,52 @@ def _ensure_tcl_tk_paths() -> None:  # noqa: PLR0912
         pass
 
 
-def main():
-    """Main entry point with proper exception handling."""
+def _parse_args(argv: list[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="SKCC Logger + Awards GUI")
+    parser.add_argument(
+        "--legacy",
+        "--legacy-logger",
+        dest="legacy",
+        action="store_true",
+        help="Launch legacy logger-only interface (no awards tab)",
+    )
+    parser.add_argument(
+        "--no-awards",
+        dest="legacy",
+        action="store_true",
+        help="Alias for --legacy (disables awards tab)",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None):  # noqa: D401
+    """Main entry point with proper exception handling.
+
+    Chooses between combined GUI (default) and legacy logger-only GUI.
+    """
+    if argv is None:
+        argv = sys.argv[1:]
+    args = _parse_args(argv)
     try:
-        # Make sure Tcl/Tk can be resolved before importing tkinter in the GUI.
         if os.name == "nt":
             _ensure_tcl_tk_paths()
-        # Import and run the clean QSO form
+        # Import inside to ensure Tcl/Tk path adjustments have happened.
         # pylint: disable=import-outside-toplevel  # noqa: PLC0415
-        from gui.tk_qso_form_clean import main as gui_main
+        if args.legacy:
+            from gui.tk_qso_form_clean import main as legacy_main  # type: ignore
 
-        gui_main()
-    except ImportError as e:
+            legacy_main()
+        else:
+            from gui.combined_gui import launch as combined_launch  # type: ignore
+
+            combined_launch()
+    except ImportError as e:  # pragma: no cover
         print(f"❌ Import Error: {e}")
         print("Make sure all required packages are installed:")
         print("  pip install httpx beautifulsoup4")
         sys.exit(1)
-    except Exception as e:
-        print(f"❌ Unexpected error starting SKCC Logger: {e}")
+    except Exception as e:  # pragma: no cover
+        print(f"❌ Unexpected error starting SKCC application: {e}")
         print("\nFull traceback:")
         traceback.print_exc()
         print("\nPlease report this error with the traceback above.")
