@@ -7,12 +7,14 @@ nuances (multi-band, QSL, log validation, etc.).
 """
 
 from __future__ import annotations
-from dataclasses import dataclass
-from typing import List, Dict, Any, Sequence, Tuple, Set
+
 import re
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, List, Sequence, Set, Tuple
+
 import httpx
 from bs4 import BeautifulSoup
-from datetime import datetime
 
 # Public roster URLs may change; keep configurable by caller.
 DEFAULT_ROSTER_URL = "https://www.skccgroup.com/membership_data/membership_roster.php"
@@ -2399,29 +2401,27 @@ def calculate_awards(
         Uses the SKCC field from the QSO record, which contains the member's
         award status at the time of QSO. This is accurate historical data.
         """
+        # If suffix enforcement disabled or no member object, allow.
         if not enforce_suffix_rules or not member:
-            return True  # No suffix enforcement means count all members
-
-        # Centurion Award (100): Count all SKCC members (any suffix or no suffix)
-        if award_threshold <= 100:
             return True
 
-        # For Tribune/Senator awards, get the member's status at QSO time from SKCC field
+        # Centurion threshold logic: every valid SKCC member counts regardless of suffix.
+        if award_threshold >= 100 and award_threshold < 200:  # safeguard for any centurion checks
+            return True
+
+        # Determine historical status (C/T/S) from the QSO's SKCC field.
         qso_time_status = get_member_status_at_qso_time(qso, member)
 
-        # Tribune Award (50+): Only count members who were C/T/S at QSO time
-        if award_threshold >= 1000:  # Senator
-            return qso_time_status in [
-                "T",
-                "S",
-            ]  # Only Tribunes/Senators count for Senator
-        elif award_threshold >= 50:  # Tribune (50 contacts)
-            return qso_time_status in [
-                "C",
-                "T",
-                "S",
-            ]  # Centurions/Tribunes/Senators count for Tribune
+        # Tribune qualification (base 50 & endorsements use 50-multiple logic).
+        # REQUIRE the worked station to have been C/T/S at the time of QSO.
+        if award_threshold == 50:
+            return qso_time_status in {"C", "T", "S"}
 
+        # Senator qualification (base 200, endorsements use 200-multiples) - only T or S.
+        if award_threshold >= 1000 or award_threshold == 200:  # defensive: handle both pathways
+            return qso_time_status in {"T", "S"}
+
+        # Default permissive fallback for any other internal uses.
         return True
 
     # Allowed key device terms (normalized upper tokens). Accept synonyms.
@@ -2499,19 +2499,17 @@ def calculate_awards(
                 # QSO before member joined; skip entirely
                 continue
             numeric_id = member.number
-        else:
-            # We no longer trust raw SKCC field unless it maps to a known member number
-            if q.skcc:
-                msk = SKCC_FIELD_RE.match(q.skcc.strip().upper())
-                if msk:
-                    candidate = int(msk.group("num"))
-                    if candidate in number_to_member:
-                        # If we have the member but call didn't match (e.g.,
-                        # portable variant we failed to normalize), ensure the
-                        # join date is OK
-                        m2 = number_to_member[candidate]
-                        if not (m2.join_date and q.date and q.date < m2.join_date):
-                            numeric_id = candidate
+        elif q.skcc:
+            msk = SKCC_FIELD_RE.match(q.skcc.strip().upper())
+            if msk:
+                candidate = int(msk.group("num"))
+                if candidate in number_to_member:
+                    # If we have the member but call didn't match (e.g.,
+                    # portable variant we failed to normalize), ensure the
+                    # join date is OK
+                    m2 = number_to_member[candidate]
+                    if not (m2.join_date and q.date and q.date < m2.join_date):
+                        numeric_id = candidate
         if numeric_id is None:
             if q.call:
                 unmatched_calls.add(q.call)
@@ -2534,6 +2532,7 @@ def calculate_awards(
 
     # Determine centurion achievement timestamp (first moment hitting 100 uniques)
     centurion_ts: datetime | None = None
+    centurion_members_set: Set[int] = set()
     if unique_count >= 100:
         seen: Set[int] = set()
         for q in chronological:
@@ -2558,6 +2557,7 @@ def calculate_awards(
                 seen.add(nid)
                 if len(seen) == 100:
                     centurion_ts = _qso_timestamp(q)
+                    centurion_members_set = set(seen)
                     break
 
     # Award progress - implementing complete SKCC award rules with historical status consideration
@@ -2578,26 +2578,23 @@ def calculate_awards(
     )
 
     if enforce_suffix_rules:
-        # For proper SKCC rules, we need to evaluate each member's status at QSO time
-        # Track members who qualified for Tribune/Senator awards at the time of contact
-        tribune_qualified_members = set()
-        senator_qualified_members = set()
+        # Revised logic implementing official Senator rules.
+        tribune_qualified_members: Set[int] = set()  # Post-centurion NEW C/T/S uniques
+        tribune_first_seen: Dict[int, datetime] = {}
+        tx8_ts: datetime | None = None
+        tx8_date_str: str | None = None
+        SENATOR_MIN_DATE = "20130801"
+        senator_qualified_members: Set[int] = set()  # Post-Tx8 T/S uniques
 
-        # Go through QSOs chronologically to determine qualification at QSO time
-        # For Tribune award, BOTH parties must be Centurions at time of QSO
         for q in chronological:
-            # Skip QSOs before you achieved Centurion (Tribune requires mutual qualification)
-            if centurion_ts and q.date:
-                qso_timestamp = _qso_timestamp(q)
-                if qso_timestamp < centurion_ts:
-                    continue  # You weren't qualified yet for Tribune
-            elif centurion_ts is None:
-                # You haven't achieved Centurion yet, so no Tribune qualification possible
+            # Must have achieved Centurion already
+            if not centurion_ts:
+                break
+            q_ts = _qso_timestamp(q)
+            if q_ts < centurion_ts:
                 continue
-
             member = member_by_call.get(q.call or "")
             numeric_id = None
-
             if member:
                 if member.join_date and q.date and q.date < member.join_date:
                     continue
@@ -2605,35 +2602,50 @@ def calculate_awards(
             elif q.skcc:
                 msk = SKCC_FIELD_RE.match(q.skcc.strip().upper())
                 if msk:
-                    candidate = int(msk.group("num"))
-                    if candidate in number_to_member:
-                        m2 = number_to_member[candidate]
+                    cand = int(msk.group("num"))
+                    if cand in number_to_member:
+                        m2 = number_to_member[cand]
                         if m2.join_date and q.date and q.date < m2.join_date:
                             continue
                         member = m2
-                        numeric_id = candidate
-
+                        numeric_id = cand
             if numeric_id is None or member is None:
                 continue
 
-            # Check if this member qualified for Tribune award at QSO time (50 contacts)
+            # Tribune set accumulation: NEW uniques not in original Centurion 100
             if member_qualifies_for_award_at_qso_time_inner(member, 50, q):
-                tribune_qualified_members.add(numeric_id)
+                if (
+                    numeric_id not in centurion_members_set
+                    and numeric_id not in tribune_qualified_members
+                ):
+                    tribune_qualified_members.add(numeric_id)
+                    tribune_first_seen[numeric_id] = q_ts
+                    if len(tribune_qualified_members) == 400 and tx8_ts is None:
+                        tx8_ts = q_ts
+                        tx8_date_str = (
+                            q.date if q.date and len(q.date) == 8 else q_ts.strftime("%Y%m%d")
+                        )
 
-            # Check if this member qualified for Senator award at QSO time
-            if member_qualifies_for_award_at_qso_time_inner(member, 1000, q):
-                senator_qualified_members.add(numeric_id)
+            # Senator accumulation only after Tx8 achieved and date boundaries satisfied
+            if (
+                tx8_ts
+                and tx8_date_str
+                and q.date
+                and q.date >= tx8_date_str
+                and q.date >= SENATOR_MIN_DATE
+            ):
+                if member_qualifies_for_award_at_qso_time_inner(member, 1000, q):
+                    if numeric_id not in senator_qualified_members:
+                        senator_qualified_members.add(numeric_id)
 
         tribune_current = len(tribune_qualified_members)
-        tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts
+        tribune_achieved = tribune_current >= 50
+        tx8_achieved = tribune_current >= 400 and tx8_ts is not None
 
-        # Add all Tribune endorsement levels
-        # TxN requires N times 50 QSOs total (cumulative from start, not reset)
-        # Tx2=100 total, Tx3=150 total, etc.
-        tribune_endorsements = []
-
-        if tribune_achieved:  # Only show endorsements if Tribune is achieved
-            for n in range(2, 11):  # Tx2 through Tx10
+        # Tribune endorsements (only if base Tribune achieved)
+        tribune_endorsements: List[AwardProgress] = []
+        if tribune_achieved:
+            for n in range(2, 11):
                 required = n * 50
                 achieved = tribune_current >= required
                 tribune_endorsements.append(
@@ -2643,16 +2655,14 @@ def calculate_awards(
                         current=tribune_current,
                         achieved=achieved,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S " f"members total"
+                            f"Tribune x{n} - Contact {required} unique C/T/S "
+                            "members post-Centurion"
                         ),
                     )
                 )
-
-            # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
-            # Tx15=750, Tx20=1000, Tx25=1250, etc.
-            for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50 (reasonable upper limit)
+            for n in range(15, 51, 5):
                 required = n * 50
-                if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
+                if tribune_current >= required * 0.8:
                     achieved = tribune_current >= required
                     tribune_endorsements.append(
                         AwardProgress(
@@ -2661,23 +2671,18 @@ def calculate_awards(
                             current=tribune_current,
                             achieved=achieved,
                             description=(
-                                f"Tribune x{n} - Contact {required} unique C/T/S " f"members total"
+                                f"Tribune x{n} - Contact {required} unique C/T/S "
+                                "members post-Centurion"
                             ),
                         )
                     )
 
-        # Senator requires Tribune x8 (400 C/T/S qualified) PLUS 200 SEPARATE
-        # contacts with T/S at QSO time
-        # Note: Senator contacts are INDEPENDENT of Tribune x8 contacts per SKCC rules
         senator_current = len(senator_qualified_members)
-        senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
+        senator_prerequisite = tx8_achieved
         senator_achieved = senator_prerequisite and senator_current >= 200
-
-        # Add Senator endorsement levels (SxN requires N times 200 T/S contacts total)
-        # Senator contacts are separate/independent from Tribune x8 contacts
-        senator_endorsements = []
-        if senator_achieved:  # Only show endorsements if base Senator is achieved
-            for n in range(2, 11):  # Sx2 through Sx10
+        senator_endorsements: List[AwardProgress] = []
+        if senator_achieved:
+            for n in range(2, 11):
                 required = n * 200
                 achieved = senator_current >= required
                 senator_endorsements.append(
@@ -2687,8 +2692,8 @@ def calculate_awards(
                         current=senator_current,
                         achieved=achieved,
                         description=(
-                            f"Senator x{n} - Contact {required} unique T/S "
-                            f"members (separate from Tx8)"
+                            f"Senator x{n} - Contact {required} unique T/S members "
+                            "post-Tx8 (>=20130801)"
                         ),
                     )
                 )
@@ -2699,17 +2704,21 @@ def calculate_awards(
                 required=50,
                 current=tribune_current,
                 achieved=tribune_achieved,
-                description="Contact 50 unique C/T/S members (both parties must be C+ at QSO time)",
+                description=(
+                    "After Centurion: work 50 additional NEW unique C/T/S members "
+                    "(both parties C+ at QSO time)"
+                ),
             )
         )
-
-        # Add all Tribune endorsement progress
         progresses.extend(tribune_endorsements)
 
-        senator_desc = (
-            "Tribune x8 (400 C/T/S) + 200 T/S members (separate contacts). "
-            f"Prerequisite: {'✓' if senator_prerequisite else '✗'}"
-        )
+        senator_desc_parts = [
+            "After Tx8: work 200 unique Tribunes/Senators (T/S) (post-20130801)",
+            f"Prerequisite Tx8: {'✓' if senator_prerequisite else '✗'}",
+        ]
+        if tx8_ts:
+            senator_desc_parts.append(f"Tx8 date: {tx8_ts.strftime('%Y-%m-%d')}")
+        senator_desc = "; ".join(senator_desc_parts)
         progresses.append(
             AwardProgress(
                 name="Senator",
@@ -2719,8 +2728,6 @@ def calculate_awards(
                 description=senator_desc,
             )
         )
-
-        # Add Senator endorsement progress
         progresses.extend(senator_endorsements)
     else:
         # Legacy counting for backwards compatibility - uses current status
