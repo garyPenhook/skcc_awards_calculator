@@ -10,14 +10,15 @@ BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
-from services.skcc import parse_adif, calculate_awards, fetch_member_roster
 import asyncio
+
+from services.skcc import calculate_awards, fetch_member_roster, parse_adif
 
 
 async def debug_adif_parsing():
     adif_file = Path(__file__).parent / "main.adi"
 
-    with open(adif_file, "r", encoding="utf-8") as f:
+    with open(adif_file, encoding="utf-8") as f:
         content = f.read()
 
     print(f"ADIF file size: {len(content)} characters")
@@ -93,7 +94,7 @@ async def debug_adif_parsing():
             print(f"\nFirst 10 unmatched calls: {awards.unmatched_calls[:10]}")
 
         # Show QSO-time status analysis (accurate from SKCC Logger)
-        print(f"\nQSO-time status analysis (from SKCC field in log):")
+        print("\nQSO-time status analysis (from SKCC field in log):")
         member_by_call = {}
         for member in members:
             from services.skcc import generate_call_aliases

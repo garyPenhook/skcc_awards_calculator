@@ -10,11 +10,11 @@ BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
-from services.skcc import DEFAULT_ROSTER_URL, _parse_roster_text, normalize_call
 import asyncio
+
 import httpx
 from bs4 import BeautifulSoup
-import re
+from services.skcc import DEFAULT_ROSTER_URL, _parse_roster_text
 
 
 async def debug_html_parsing():
@@ -51,7 +51,7 @@ async def debug_html_parsing():
         print(f"  Row {row_idx}: {number} -> {cells[:5]}")
 
     # Show some sample rows to understand the structure
-    print(f"\nSample rows (first 10 data rows):")
+    print("\nSample rows (first 10 data rows):")
     data_rows = 0
     for i, tr in enumerate(rows):
         cells = [c.get_text(strip=True) for c in tr.find_all(["td", "th"])]
@@ -65,13 +65,13 @@ async def debug_html_parsing():
                 continue
 
     # Test the parsing function directly
-    print(f"\n=== Testing _parse_roster_text function ===")
+    print("\n=== Testing _parse_roster_text function ===")
     members = _parse_roster_text(html_content)
     print(f"Parsed {len(members)} members")
 
     # Check for our test numbers
     number_to_member = {m.number: m for m in members}
-    print(f"\nChecking for test numbers:")
+    print("\nChecking for test numbers:")
     for num in test_numbers:
         if num in number_to_member:
             member = number_to_member[num]
@@ -80,7 +80,7 @@ async def debug_html_parsing():
             print(f"  {num}: NOT FOUND")
 
     # Check ranges around our test numbers to see if there are gaps
-    print(f"\nChecking number ranges around test numbers:")
+    print("\nChecking number ranges around test numbers:")
     for num in test_numbers:
         print(f"\nAround {num}:")
         for offset in range(-5, 6):
@@ -105,12 +105,12 @@ async def debug_html_parsing():
     print(f"Missing member count: {max(all_numbers) - len(all_numbers)}")
 
     # Show some gaps
-    print(f"\nSample gaps (first 10):")
+    print("\nSample gaps (first 10):")
     for i, (start, end) in enumerate(gaps[:10]):
         print(f"  Gap {i+1}: {start}-{end} ({end-start+1} numbers)")
 
     # Show first few parsed members
-    print(f"\nFirst 10 parsed members:")
+    print("\nFirst 10 parsed members:")
     for i, member in enumerate(members[:10]):
         print(f"  {member.number}: {member.call}")
 

@@ -13,7 +13,7 @@ import tkinter as tk
 from datetime import datetime, timezone
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
-from typing import Optional, cast, Sequence
+from typing import Optional, Sequence, cast
 
 # Add the repo root to Python path for imports
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,13 +21,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from adif_io.adif_writer import append_record  # noqa: E402
+from gui._fallback_roster import _FallbackRosterManager  # noqa: E402
+from gui.components.space_weather_panel import SpaceWeatherPanel  # noqa: E402,F401
 from models.key_type import DISPLAY_LABELS, KeyType, normalize  # noqa: E402
 from models.qso import QSO  # noqa: E402
 from utils.backup_manager import backup_manager  # noqa: E402
 from utils.cluster_client import ClusterSpot, SKCCClusterClient  # noqa: E402
 from utils.roster_manager import RosterManager  # noqa: E402
-from gui._fallback_roster import _FallbackRosterManager  # noqa: E402
-from gui.components.space_weather_panel import SpaceWeatherPanel  # noqa: E402,F401
 
 # Decorative image handling (Pillow import now isolated in components.decor_image)
 

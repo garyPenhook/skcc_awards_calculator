@@ -5,12 +5,12 @@ Provides ClusterController to manage connection and spot handling.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Optional, Callable
 import tkinter as tk
+from dataclasses import dataclass
 from tkinter import simpledialog, ttk
+from typing import Callable, Optional
 
-from utils.cluster_client import SKCCClusterClient, ClusterSpot
+from utils.cluster_client import ClusterSpot, SKCCClusterClient
 
 
 @dataclass

@@ -9,22 +9,19 @@ This script will help analyze your Tribune award progress by showing:
 
 import sys
 from pathlib import Path
-from datetime import datetime
 
 # Add the backend app directory to Python path
 backend_path = Path(__file__).parent.parent / "backend" / "app"
 sys.path.insert(0, str(backend_path))
 
 from services.skcc import (
-    parse_adif,
-    fetch_member_roster,
-    Member,
-    QSO,
-    normalize_call,
-    generate_call_aliases,
-    get_member_status_at_qso_time,
     SKCC_FIELD_RE,
     _qso_timestamp,
+    fetch_member_roster,
+    generate_call_aliases,
+    get_member_status_at_qso_time,
+    normalize_call,
+    parse_adif,
 )
 
 
@@ -155,7 +152,7 @@ def analyze_tribune_progress(adif_files, members):
     print(f"Total unmatched calls: {len(unmatched_calls)}")
     print(f"Tribune qualified members: {len(tribune_qualified)}")
 
-    print(f"\n=== TRIBUNE AWARD SUMMARY ===")
+    print("\n=== TRIBUNE AWARD SUMMARY ===")
     print(f"Current progress: {len(tribune_qualified)}/50")
     print(f"Achievement status: {'ACHIEVED' if len(tribune_qualified) >= 50 else 'NOT ACHIEVED'}")
     print(f"Percentage: {len(tribune_qualified)/50*100:.1f}%")

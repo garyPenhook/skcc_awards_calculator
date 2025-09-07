@@ -10,9 +10,10 @@ BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
     sys.path.insert(0, str(BACKEND_APP))
 
-from services.skcc import fetch_member_roster, DEFAULT_ROSTER_URL, FALLBACK_ROSTER_URLS
 import asyncio
+
 import httpx
+from services.skcc import DEFAULT_ROSTER_URL, FALLBACK_ROSTER_URLS, fetch_member_roster
 
 
 async def debug_roster():
@@ -29,7 +30,7 @@ async def debug_roster():
 
             # Show first few lines
             lines = response.text.split("\n")[:10]
-            print(f"First 10 lines:")
+            print("First 10 lines:")
             for i, line in enumerate(lines, 1):
                 print(f"  {i}: {line[:100]}")
 
@@ -49,13 +50,13 @@ async def debug_roster():
             print(f"Error: {e}")
 
     # Test our parsing
-    print(f"\n=== Testing Roster Parsing ===")
+    print("\n=== Testing Roster Parsing ===")
     members = await fetch_member_roster()
     print(f"Total members parsed: {len(members)}")
 
     # Test specific numbers that should exist
     test_numbers = [660, 1395, 13613, 24472, 25995, 29650, 29236]
-    print(f"\nTesting specific SKCC numbers from your log:")
+    print("\nTesting specific SKCC numbers from your log:")
 
     number_to_member = {m.number: m for m in members}
 
@@ -68,14 +69,14 @@ async def debug_roster():
 
     # Show number ranges and recent additions
     numbers = [m.number for m in members]
-    print(f"\nRoster statistics:")
+    print("\nRoster statistics:")
     print(f"  Number range: {min(numbers)} to {max(numbers)}")
     print(f"  Total members: {len(numbers)}")
     print(f"  Members > 29000: {len([n for n in numbers if n > 29000])}")
     print(f"  Members > 30000: {len([n for n in numbers if n > 30000])}")
 
     # Show highest numbered members
-    print(f"\nHighest numbered members:")
+    print("\nHighest numbered members:")
     sorted_members = sorted(members, key=lambda m: m.number, reverse=True)
     for member in sorted_members[:5]:
         print(f"  #{member.number}: {member.call}")

@@ -3,22 +3,18 @@
 
 import sys
 from pathlib import Path
-from datetime import datetime
 
 # Add the backend app directory to Python path
 backend_path = Path(__file__).parent.parent / "backend" / "app"
 sys.path.insert(0, str(backend_path))
 
 from services.skcc import (
-    parse_adif,
+    _qso_timestamp,
     fetch_member_roster,
-    Member,
-    QSO,
-    normalize_call,
     generate_call_aliases,
     get_member_status_at_qso_time,
-    SKCC_FIELD_RE,
-    _qso_timestamp,
+    normalize_call,
+    parse_adif,
 )
 
 
@@ -41,7 +37,7 @@ def analyze_centurion_achievement(adif_files, members):
     adif_contents = []
     for file_path in adif_files:
         try:
-            with open(file_path, "r", encoding="utf-8") as f:
+            with open(file_path, encoding="utf-8") as f:
                 adif_contents.append(f.read())
         except Exception as e:
             print(f"Error reading {file_path}: {e}")
@@ -53,7 +49,7 @@ def analyze_centurion_achievement(adif_files, members):
     # Filter to CW QSOs only
     cw_qsos = [q for q in qsos if q.mode and q.mode.upper() == "CW"]
 
-    print(f"=== CENTURION ACHIEVEMENT ANALYSIS ===")
+    print("=== CENTURION ACHIEVEMENT ANALYSIS ===")
     print()
     print(f"Total QSOs parsed: {len(qsos)}")
     print(f"CW QSOs: {len(cw_qsos)}")
@@ -116,9 +112,9 @@ def analyze_centurion_achievement(adif_files, members):
                 # Check if this would be your 100th SKCC contact (Centurion threshold)
                 if skcc_contacts == 100 and not centurion_achievement_qso:
                     centurion_achievement_qso = (timestamp, q, i + 1)
-                    print(f"*** ESTIMATED CENTURION ACHIEVEMENT ***")
+                    print("*** ESTIMATED CENTURION ACHIEVEMENT ***")
                     print(f"QSO #{i+1}: {q.call} on {timestamp.strftime('%Y-%m-%d %H:%M')}")
-                    print(f"This would be your 100th SKCC contact")
+                    print("This would be your 100th SKCC contact")
                     print()
                     break
 
