@@ -49,7 +49,7 @@ def add_decorative_bug_image(parent, row: int, assets_dir: Path) -> None:
         deco_frame.bug_img_ref = bug_img
         ttk.Label(deco_frame, image=bug_img).pack(anchor="w")
     else:
-        msg = "Add 'assets/bug.png' (or bug.jpg). PNG loads without Pillow; " "JPG requires Pillow."
+        msg = "Add 'assets/bug.png' (or bug.jpg). PNG loads without Pillow; JPG requires Pillow."
         ttk.Label(
             deco_frame,
             text=msg,

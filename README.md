@@ -48,6 +48,19 @@ cd skcc_awards_calculator
 pip3 install -r requirements.txt
 ```
 
+### Raspberry Pi (ARM)
+See detailed guide: `docs/RASPBERRY_PI.md`
+
+Quick run:
+```bash
+sudo apt update && sudo apt install -y python3 python3-pip python3-venv python3-tk
+git clone https://github.com/garyPenhook/skcc_awards_calculator.git
+cd skcc_awards_calculator
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python w4gns_skcc_logger.py
+```
+
 ### Verify Installation
 ```bash
 python check_dependencies.py
