@@ -1,7 +1,8 @@
-from functools import lru_cache
-from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import Field
 import os
+from functools import lru_cache
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -11,7 +12,7 @@ class Settings(BaseSettings):
     app_env: str = Field(default="dev")
     log_level: str = Field(default="INFO")
     database_url: str = Field(default="sqlite+aiosqlite:///./dev.db")
-    version: str = Field(default="0.1.0")
+    version: str = Field(default="0.2.0")
 
 
 @lru_cache(maxsize=1)

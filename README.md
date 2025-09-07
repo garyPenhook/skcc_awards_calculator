@@ -14,16 +14,22 @@ A comprehensive Python application for SKCC (Straight Key Century Club) QSO logg
 - **💾 ADIF 3.1.5 Logging**: Professional QSO logging with backup management
    - Backups are created automatically when you exit the app (configurable)
 - **🎨 Two-Column Layout**: QSO form + spots display for efficient operation
-- **🔄 Smart Updates**: Checks roster on startup (1-hour minimum interval)
+- **�️ Space Weather Panel**: Real-time propagation context panel (SFI / A / K etc.)
+- **🕘 Previous QSO Recall**: Instantly see last QSO with a station while typing
+- **🔄 Smart Updates**: Roster auto-refresh on startup (1-hour freshness window)
+- **🗂️ Session Persistence**: Remembers last ADIF(s), roster mode (live/CSV), logger ADIF path
+- **⚙️ Configurable Backups**: Persistent backup folder & toggle in user config
 
-### Award Progress Calculator
-- **🏆 All SKCC Awards**: Centurion, Tribune, Senator with endorsements
-- **🍁 Canadian Maple**: Yellow, Orange, Red, Gold Maple awards
-- **🌎 DX Awards**: DXQ (QSO-based) and DXC (country-based) with QRP endorsements
-- **🔤 PFX Awards**: Prefix-based scoring system (Px1-Px20+)
-- **🗝️ Triple Key**: Straight key, bug, side swiper tracking
-- **💬 Rag Chew**: Minute accumulation awards (RC1-RC20+)
-- **🌍 WAC Awards**: Worked All Continents with band endorsements
+### Award Progress Calculator (Integrated Tab)
+- **🏆 Core Awards**: Centurion, Tribune, Senator (historical suffix-based logic)
+- **🍁 Canadian Maple**: Yellow / Orange (per-band) / Red / Gold (QRP) tracking
+- **🌎 DX**: DXQ (unique DX member QSOs) & DXC (unique DXCC countries) + QRP
+- **🔤 PFX**: Prefix scoring (Px1–Px10, extended Px15+ levels & band endorsements)
+- **🗝️ Triple Key**: Straight, Bug, Side Swiper + overall 300-contact composite
+- **💬 Rag Chew**: RC1–RC50 levels + per-band endorsements (minutes + QSO counts)
+- **🌍 WAC**: Overall, band, and QRP continent completion
+- **🧪 Rule Toggles**: Enforce key type, treat missing key as valid, enforce suffix rules
+- **📈 Rich Endorsements**: Band/mode endorsements auto-populated where thresholds met
 
 ## 📥 Installation
 
@@ -86,7 +92,11 @@ python3 w4gns_skcc_logger.py
 - Backup management
 
 ### Awards Calculator (Integrated)
-Award progress is now part of the main application. Open the app and select the "Awards" tab.
+Award progress lives in the same window. Open the app and select the "Awards" tab.
+Use the toggles at the top to:
+- Enforce key types (Straight / Bug / Cootie only)
+- Decide whether missing key info counts
+- Enforce SKCC suffix rules for Tribune/Senator (historical accuracy)
 
 ### Command Line Awards Check
 ```bash
@@ -139,8 +149,8 @@ python3 scripts/awards_check.py mylog.adi
 | **DX Awards** | International contacts (QSO or country-based) |
 | **PFX Awards** | Prefix-based point accumulation |
 | **Triple Key** | 300 contacts using all 3 key types |
-| **Rag Chew** | Accumulate conversational minutes |
-| **WAC** | Work all 6 continents |
+| **Rag Chew** | Accumulate conversational minutes (RC levels & per-band) |
+| **WAC** | Work all 6 continents (overall / band / QRP) |
 
 ### Award Endorsements
 - **Band endorsements**: Individual band achievements
@@ -155,8 +165,8 @@ skcc_awards_calculator/
 ├── run_qso_logger.bat           # Windows launcher
 ├── install_simple.bat           # Easy installer
 ├── gui/
-│   ├── tk_qso_form_clean.py     # Logger core GUI
-│   └── combined_gui.py          # Integrated Logger + Awards (tabbed)
+│   ├── tk_qso_form_clean.py     # Logger core GUI (legacy tab content)
+│   └── combined_gui.py          # Integrated Logger + Awards (main entry logic)
 ├── utils/
 │   ├── cluster_client.py        # Real-time spots
 │   ├── roster_manager.py        # SKCC member database
