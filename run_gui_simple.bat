@@ -1,5 +1,5 @@
 @echo off
-echo Starting SKCC Awards Calculator...
+echo Starting Integrated SKCC Logger + Awards...
 echo.
 
 REM Detect a usable Python command (prefer python, fallback to Windows launcher py -3)
@@ -24,5 +24,5 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM Run the GUI
-%PYCMD% scripts\gui.py
+REM Run the integrated GUI
+%PYCMD% w4gns_skcc_logger.py

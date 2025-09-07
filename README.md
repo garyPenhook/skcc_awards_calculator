@@ -2,7 +2,7 @@
 
 A comprehensive Python application for SKCC (Straight Key Century Club) QSO logging and award progress calculation. Features real-time cluster spots, automatic state lookup, and complete ADIF logging capabilities.
 
-> **🎯 Quick Start**: Run `python w4gns_skcc_logger.py` to launch the main logger with all features!
+> **🎯 Quick Start**: Run `python w4gns_skcc_logger.py` to launch the integrated Logger + Awards GUI.
 
 ## 🚀 Features
 
@@ -85,14 +85,8 @@ python3 w4gns_skcc_logger.py
 - Duplicate spot filtering
 - Backup management
 
-### Awards Calculator GUI
-```bash
-# Windows
-run_gui.bat
-
-# Linux/Mac
-python3 scripts/gui.py
-```
+### Awards Calculator (Integrated)
+Award progress is now part of the main application. Open the app and select the "Awards" tab.
 
 ### Command Line Awards Check
 ```bash
@@ -161,13 +155,14 @@ skcc_awards_calculator/
 ├── run_qso_logger.bat           # Windows launcher
 ├── install_simple.bat           # Easy installer
 ├── gui/
-│   └── tk_qso_form_clean.py     # Main GUI implementation
+│   ├── tk_qso_form_clean.py     # Logger core GUI
+│   └── combined_gui.py          # Integrated Logger + Awards (tabbed)
 ├── utils/
 │   ├── cluster_client.py        # Real-time spots
 │   ├── roster_manager.py        # SKCC member database
 │   └── backup_manager.py        # ADIF backups
 ├── scripts/
-│   ├── gui.py                   # Awards calculator GUI
+│   ├── gui.py                   # (Deprecated) old standalone awards GUI
 │   └── awards_check.py          # Command-line calculator
 └── backend/
     └── app/
@@ -235,10 +230,11 @@ MIT License - See LICENSE file for details.
 3. Start logging!
 
 **Want to check award progress?**
-1. Export your log to ADIF format
-2. Run `run_gui.bat` (Windows) or `python3 scripts/gui.py`
-3. Load your ADIF file and current roster
-4. Click "Compute" to see your progress
+1. Run `python w4gns_skcc_logger.py`
+2. Click the "Awards" tab
+3. Add ADIF file(s) or click "Use Logger ADIF"
+4. Load roster (live or CSV) if needed
+5. Click "Compute"
 
 ---
 

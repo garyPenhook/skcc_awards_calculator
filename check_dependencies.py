@@ -4,14 +4,14 @@ Check if Python and required modules are properly installed
 """
 
 import sys
-import subprocess
 
 
 def check_python_version():
     """Check if Python version is sufficient"""
     print(f"Python version: {sys.version}")
-    if sys.version_info < (3, 8):
-        print("❌ Python 3.8 or higher is required")
+    # Require Python 3.9+ (align with project runtime); noqa: UP036
+    if sys.version_info < (3, 9):
+        print("❌ Python 3.9 or higher is required")
         return False
     print("✅ Python version is sufficient")
     return True
@@ -67,7 +67,7 @@ def main():
 
     if all_good:
         print("🎉 All dependencies are installed! You can run the program.")
-        print("   Start with: python scripts/gui.py")
+        print("   Start with: python w4gns_skcc_logger.py")
     else:
         print("⚠️  Some dependencies are missing. Install them with:")
         print("   pip install httpx beautifulsoup4")
