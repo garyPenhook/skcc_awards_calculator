@@ -18,6 +18,11 @@ ignore = []
   "SIM102",  # nested ifs
   "SIM105"   # try/except/pass suppression
 ]
+"gui/combined_gui.py" = [
+  "PLR0915", # large widget build method
+  "PLR0912", # branching in result handler
+  "PLR2004"  # acceptable magic GUI sizes or small thresholds
+]
 "utils/space_weather.py" = [
   "PLR0915" # too many statements in robust parsing helpers
 ]
