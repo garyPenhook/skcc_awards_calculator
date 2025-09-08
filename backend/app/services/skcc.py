@@ -979,10 +979,8 @@ def _parse_roster_text(text: str) -> List[Member]:
                     state = cells[4].strip() if len(cells) > 4 else None
                     # Keep only 2-3 char state/province codes;
                     # filter out country codes
-                    if state and len(state) <= 3 and state.isalpha():
-                        state = state.upper()
-                    else:
-                        state = None
+                    # Ruff SIM108 prefers ternary over this simple if/else; apply transformation.
+                    state = state.upper() if state and len(state) <= 3 and state.isalpha() else None
                     members.append(
                         Member(
                             call=call_candidate,
@@ -2669,77 +2667,73 @@ def calculate_awards(
         # once the previous level has been ACHIEVED. (No preview entries.)
         tribune_endorsements: List[AwardProgress] = []
         if tribune_achieved:
-            prev_ok = True  # Tx1 (base Tribune) is achieved here
+            # Only show achieved endorsements; hide future ones until earned.
             for n in range(2, 11):  # Tx2 .. Tx10
-                if not prev_ok:
-                    break
                 required = n * 50
-                achieved = tribune_current >= required
+                if tribune_current < required:
+                    break
                 tribune_endorsements.append(
                     AwardProgress(
                         name=f"Tx{n}",
                         required=required,
                         current=tribune_current,
-                        achieved=achieved,
+                        achieved=True,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S members "
-                            "post-Centurion"
+                            "Tribune x"
+                            f"{n} - Contact {required} unique C/T/S "
+                            "members post-Centurion"
                         ),
                     )
                 )
-                prev_ok = achieved
             # Higher endorsements (Tx15, Tx20, ...) only start after Tx10 achieved (500 uniques)
             if tribune_current >= 500:
-                prev_high_ok = True
                 for n in range(15, 51, 5):
-                    if not prev_high_ok:
-                        break
                     required = n * 50
-                    achieved = tribune_current >= required
+                    if tribune_current < required:
+                        break
                     tribune_endorsements.append(
                         AwardProgress(
                             name=f"Tx{n}",
                             required=required,
                             current=tribune_current,
-                            achieved=achieved,
+                            achieved=True,
                             description=(
-                                f"Tribune x{n} - Contact {required} unique C/T/S members "
-                                "post-Centurion"
+                                "Tribune x"
+                                f"{n} - Contact {required} unique C/T/S "
+                                "members post-Centurion"
                             ),
                         )
                     )
-                    prev_high_ok = achieved
 
         senator_current = len(senator_qualified_members)
         senator_prerequisite = tx8_achieved
         senator_achieved = senator_prerequisite and senator_current >= 200
         senator_endorsements: List[AwardProgress] = []
         if senator_achieved:
-            prev_s_ok = True  # Sx1 (base Senator) achieved
+            # Only display earned Senator endorsements
             for n in range(2, 11):  # Sx2..Sx10
-                if not prev_s_ok:
-                    break
                 required = n * 200
-                achieved = senator_current >= required
+                if senator_current < required:
+                    break
                 senator_endorsements.append(
                     AwardProgress(
                         name=f"Sx{n}",
                         required=required,
                         current=senator_current,
-                        achieved=achieved,
+                        achieved=True,
                         description=(
-                            f"Senator x{n} - Contact {required} unique T/S members "
+                            "Senator x"
+                            f"{n} - Contact {required} unique T/S members "
                             "post-Tx8 (>=20130801)"
                         ),
                     )
                 )
-                prev_s_ok = achieved
 
         progresses.append(
             AwardProgress(
                 name="Tribune",
                 required=50,
-                current=tribune_current,
+                current=min(tribune_current, 50),  # Cap base display at threshold
                 achieved=tribune_achieved,
                 description=(
                     "After Centurion: work 50 unique C/T/S members (both parties C+ at QSO time). "
@@ -2760,7 +2754,7 @@ def calculate_awards(
             AwardProgress(
                 name="Senator",
                 required=200,
-                current=senator_current,
+                current=min(senator_current, 200),  # Cap base display at threshold
                 achieved=senator_achieved,
                 description=senator_desc,
             )
@@ -2784,40 +2778,40 @@ def calculate_awards(
 
         tribune_endorsements = []
         if tribune_achieved:
-            prev_ok = True
             for n in range(2, 11):
-                if not prev_ok:
-                    break
                 required = n * 50
-                achieved = tribune_current >= required
+                if tribune_current < required:
+                    break
                 tribune_endorsements.append(
                     AwardProgress(
                         name=f"Tx{n}",
                         required=required,
                         current=tribune_current,
-                        achieved=achieved,
+                        achieved=True,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S members "
-                            f"(legacy: current status)"
+                            "Tribune x"
+                            f"{n} - Contact {required} unique C/T/S members "
+                            "(legacy: current status)"
                         ),
                     )
                 )
-                prev_ok = achieved
 
-    # Higher endorsements (legacy): show only once Tx10 achieved
-        for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
-            required = n * 50
-            if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
-                achieved = tribune_current >= required
+        # Higher endorsements (legacy): only show achieved levels beyond Tx10
+        if tribune_current >= 500:
+            for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
+                required = n * 50
+                if tribune_current < required:
+                    break
                 tribune_endorsements.append(
                     AwardProgress(
                         name=f"Tx{n}",
                         required=required,
                         current=tribune_current,
-                        achieved=achieved,
+                        achieved=True,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S members "
-                            f"(legacy: current status)"
+                            "Tribune x"
+                            f"{n} - Contact {required} unique C/T/S members "
+                            "(legacy: current status)"
                         ),
                     )
                 )
@@ -2891,6 +2885,10 @@ def calculate_awards(
     endorsements: List[AwardEndorsement] = []
     if enable_endorsements:
         for name, required in use_thresholds:
+            # SKCC official program: band endorsements apply to Centurion only.
+            # Tribune/Senator have ONLY their TxN / SxN progression, NOT per-band or per-mode.
+            if name not in {"Centurion"}:
+                continue
             for band, nums in band_members.items():
                 current = len(nums)
                 if current >= required:
@@ -2900,23 +2898,11 @@ def calculate_awards(
                             category="band",
                             value=band,
                             required=required,
-                            current=current,
-                            achieved=current >= required,
+                            current=min(current, required),  # cap display at threshold
+                            achieved=True,
                         )
                     )
-            for mode, nums in mode_members.items():
-                current = len(nums)
-                if current >= required:
-                    endorsements.append(
-                        AwardEndorsement(
-                            award=name,
-                            category="mode",
-                            value=mode,
-                            required=required,
-                            current=current,
-                            achieved=current >= required,
-                        )
-                    )
+        # Mode endorsements removed – SKCC QSOs are CW-only; a CW mode column is redundant.
         endorsements.sort(key=lambda e: (e.award, e.category, e.value))
 
     # Calculate Canadian Maple Awards

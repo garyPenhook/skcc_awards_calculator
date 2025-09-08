@@ -432,6 +432,8 @@ class QSOForm(ttk.Frame):
         self.columnconfigure(0, weight=1)  # Left panel
         self.columnconfigure(1, weight=1)  # Right panel
         self.rowconfigure(0, weight=1)
+        # Additional row for status bar (non-expanding)
+        self.rowconfigure(1, weight=0)
 
         # Create main left and right frames
         left_frame = ttk.LabelFrame(self, text="QSO Entry", padding=10)
@@ -455,6 +457,30 @@ class QSOForm(ttk.Frame):
             self.space_weather_panel.pack(side=tk.BOTTOM, fill="x", padx=8, pady=(0, 8))
         except Exception:
             self.space_weather_panel = None
+
+        # ------------------------------------------------------------------
+        # Status bar
+        # ------------------------------------------------------------------
+        # Only create once; rebuilds should not duplicate
+        if self.app_status_label is None:
+            status_frame = ttk.Frame(self)
+            status_frame.grid(row=1, column=0, columnspan=2, sticky="ew", padx=6, pady=(0, 4))
+            # Give frame a separator style feel (optional)
+            try:
+                ttk.Separator(self, orient="horizontal").grid(
+                    row=2, column=0, columnspan=2, sticky="ew"
+                )
+            except Exception:
+                pass
+            self.app_status_var.set("Ready")
+            self.app_status_label = ttk.Label(
+                status_frame,
+                textvariable=self.app_status_var,
+                anchor="w",
+                relief="sunken",
+                padding=(4, 2),
+            )
+            self.app_status_label.pack(fill="x")
 
     def _build_qso_form(self, parent):
         """Build the QSO entry form in the left panel."""

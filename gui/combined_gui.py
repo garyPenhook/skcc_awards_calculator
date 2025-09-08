@@ -181,20 +181,36 @@ class AwardsPanel(ttk.Frame):
         # Endorsements tab
         self.end_tab = ttk.Frame(self.nb)
         self.nb.add(self.end_tab, text="Endorsements")
+        # Improved endorsements tree with explicit Award and Band/Mode columns
         self.endorse_tree = ttk.Treeview(
             self.end_tab,
-            columns=("category", "value", "current", "required"),
+            columns=("award", "etype", "band_mode", "current", "required", "progress"),
             show="headings",
         )
         for col, txt, w in [
-            ("category", "Category", 80),
-            ("value", "Value", 100),
+            ("award", "Award", 110),
+            ("etype", "Type", 70),
+            ("band_mode", "Band/Mode", 100),
             ("current", "Current", 80),
             ("required", "Required", 80),
+            ("progress", "%", 60),
         ]:
             self.endorse_tree.heading(col, text=txt)
             self.endorse_tree.column(col, width=w, anchor=tk.CENTER)
-        self.endorse_tree.pack(fill=tk.BOTH, expand=True)
+        self.endorse_tree.pack(fill=tk.BOTH, expand=True, pady=(0, 4))
+
+        # Legend / clarification label
+        ttk.Label(
+            self.end_tab,
+            text=(
+                "Award: base award name | Type: band or mode endorsement | "
+                "Band/Mode: specific band (e.g. 40M) or mode (CW). "
+                "Only achieved endorsements are shown."
+            ),
+            wraplength=760,
+            justify="left",
+            foreground="gray",
+        ).pack(fill=tk.X, padx=4, pady=(0, 4))
 
         # Canadian Maple tab
         self.maple_tab = ttk.Frame(self.nb)
@@ -541,14 +557,27 @@ class AwardsPanel(ttk.Frame):
             self.awards_tree.configure(show="tree headings")
             for i, iid in enumerate(self.awards_tree.get_children()):
                 self.awards_tree.item(iid, text=result.awards[i].name)
-            # Endorsements
+            # Endorsements (only show achieved to reduce clutter; adjust if needed)
             for e in result.endorsements:
-                self.endorse_tree.insert(
-                    "",
-                    tk.END,
-                    values=(e.category, e.value, e.current, e.required),
-                    text=e.award,
-                )
+                progress_pct = f"{(e.current / e.required) * 100:.0f}%" if e.required else "-"
+                # Only show achieved entries (aligned with Tribune/Senator sequential gating)
+                if e.current >= e.required:
+                    iid = self.endorse_tree.insert(
+                        "",
+                        tk.END,
+                        values=(
+                            e.award,
+                            e.category,
+                            e.value,
+                            e.current,
+                            e.required,
+                            progress_pct,
+                        ),
+                    )
+                    # Highlight achieved row
+                    self.endorse_tree.item(iid, tags=("achieved",))
+            # Style tag for achieved
+            self.endorse_tree.tag_configure("achieved", background="#e6ffe6")
             # Canadian Maple
             for maple in result.canadian_maple_awards:
                 band_text = maple.band if maple.band else "All"

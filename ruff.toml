@@ -26,3 +26,11 @@ ignore = []
 "utils/space_weather.py" = [
   "PLR0915" # too many statements in robust parsing helpers
 ]
+"backend/app/services/skcc.py" = [
+  "UP006",   # prefer builtin generics; large refactor deferred
+  "PLR2004", # numerous domain thresholds / constants acceptable here
+  "SIM102",  # nested conditionals kept for clarity of award logic
+  "PLR0912", # complex award logic with many branches (intentional)
+  "PLR0915", # large function bodies pending future modularization
+  "PLR0913"  # many parameters required for calculate_awards API
+]
