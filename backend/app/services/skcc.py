@@ -2423,6 +2423,11 @@ def calculate_awards(
 
         # Determine historical status (C/T/S) from the QSO's SKCC field.
         qso_time_status = get_member_status_at_qso_time(qso, member)
+        # Fallback: if historical suffix not present in the QSO's SKCC field
+        # (many logs omit the trailing C/T/S or were imported before suffixes were appended),
+        # use the member's current suffix so we do not undercount legitimate contacts.
+        if not qso_time_status and member and member.suffix in {"C", "T", "S"}:
+            qso_time_status = member.suffix
 
         # Tribune qualification (base 50 & endorsements use 50-multiple logic).
         # REQUIRE the worked station to have been C/T/S at the time of QSO.
