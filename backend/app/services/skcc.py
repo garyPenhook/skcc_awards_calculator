@@ -1904,14 +1904,42 @@ def calculate_triple_key_awards(
             member_by_call.setdefault(alias, member)
 
     # Track unique members worked with each key type
-    straight_key_members = set()  # Unique SKCC member calls
+    straight_key_members = set()  # Unique SKCC member calls (straight key)
     bug_members = set()
     sideswiper_members = set()
 
-    # Define key type mappings - comprehensive SKCC key type detection
-    STRAIGHT_KEY_TYPES = {"SK", "STRAIGHT", "STRAIGHT KEY", "STRAIGHTKEY"}
-    BUG_TYPES = {"BUG", "SEMI", "SEMI-AUTO", "SEMIAUTO", "SEMI-AUTOMATIC"}
-    SIDESWIPER_TYPES = {"SIDESWIPER", "SIDE SWIPER", "COOTIE", "SS", "SWIPER"}
+    # Patterns (regex) with word boundaries to avoid false positives (e.g. 'SK' in 'SKCC')
+    # re already imported at top; alias not needed
+
+    PATTERNS = {
+        "straight": [
+            r"\bstraight\b",
+            r"\bstraight\s+key\b",
+        ],
+        "bug": [
+            r"\bbug\b",
+            r"\bvibro(?:plex)?\b",
+            r"\bsemi[- ]?auto(?:matic)?\b",
+        ],
+        "sideswiper": [
+            r"\bsides?swiper\b",
+            r"\bcootie\b",
+            r"\bsidewinder\b",
+            r"\bss\b",  # rare shorthand (ensure spaced/isolated)
+        ],
+    }
+
+    def detect_key_type(text: str) -> str | None:
+        """Return canonical key type ('straight','bug','sideswiper') or None."""
+        t = text.upper()
+        # Order: bug, sideswiper, straight.
+        # (Bug often explicitly stated; ordering avoids 'straight' capturing
+        # early when both appear.)
+        for kind in ("bug", "sideswiper", "straight"):
+            for pat in PATTERNS[kind]:
+                if re.search(pat, t, flags=re.IGNORECASE):
+                    return kind
+        return None
 
     for qso in qsos:
         if not qso.call:
@@ -1944,28 +1972,12 @@ def calculate_triple_key_awards(
             elif str(qso.date).replace("-", "") < str(member.join_date).replace("-", ""):
                 continue
 
-        # Extract key type from various possible fields
-        key_type = None
-
-        # Check comment field for key type
-        if qso.comment:
-            comment_upper = qso.comment.upper().strip()
-            if any(kt in comment_upper for kt in STRAIGHT_KEY_TYPES):
-                key_type = "straight"
-            elif any(kt in comment_upper for kt in BUG_TYPES):
-                key_type = "bug"
-            elif any(kt in comment_upper for kt in SIDESWIPER_TYPES):
-                key_type = "sideswiper"
-
-        # Check dedicated key type field if available
-        if not key_type and qso.key_type:
-            key_upper = qso.key_type.upper().strip()
-            if any(kt in key_upper for kt in STRAIGHT_KEY_TYPES):
-                key_type = "straight"
-            elif any(kt in key_upper for kt in BUG_TYPES):
-                key_type = "bug"
-            elif any(kt in key_upper for kt in SIDESWIPER_TYPES):
-                key_type = "sideswiper"
+        # Prefer explicit key_type field over comment (operator likely selected a value)
+        key_type: str | None = None
+        if qso.key_type:
+            key_type = detect_key_type(qso.key_type)
+        if not key_type and qso.comment:
+            key_type = detect_key_type(qso.comment)
 
         # Add to appropriate set if key type identified
         if key_type == "straight":
