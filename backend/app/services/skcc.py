@@ -2715,7 +2715,10 @@ def calculate_awards(
         senator_achieved = senator_prerequisite and senator_current >= 200
         senator_endorsements: List[AwardProgress] = []
         if senator_achieved:
-            for n in range(2, 11):
+            prev_s_ok = True  # Sx1 (base Senator) achieved
+            for n in range(2, 11):  # Sx2..Sx10
+                if not prev_s_ok:
+                    break
                 required = n * 200
                 achieved = senator_current >= required
                 senator_endorsements.append(
@@ -2730,6 +2733,7 @@ def calculate_awards(
                         ),
                     )
                 )
+                prev_s_ok = achieved
 
         progresses.append(
             AwardProgress(
@@ -2778,26 +2782,29 @@ def calculate_awards(
         tribune_current = len(centurion_plus_members)
         tribune_achieved = tribune_current >= 50  # Tribune requires 50 contacts with C/T/S
 
-        # Add all Tribune endorsement levels (legacy mode)
-        # TxN requires N times 50 QSOs (Tx2=100, Tx3=150, ..., Tx10=500)
         tribune_endorsements = []
-        for n in range(2, 11):  # Tx2 through Tx10
-            required = n * 50
-            achieved = tribune_current >= required
-            tribune_endorsements.append(
-                AwardProgress(
-                    name=f"Tx{n}",
-                    required=required,
-                    current=tribune_current,
-                    achieved=achieved,
-                    description=(
-                        f"Tribune x{n} - Contact {required} unique C/T/S members "
-                        f"(legacy: current status)"
-                    ),
+        if tribune_achieved:
+            prev_ok = True
+            for n in range(2, 11):
+                if not prev_ok:
+                    break
+                required = n * 50
+                achieved = tribune_current >= required
+                tribune_endorsements.append(
+                    AwardProgress(
+                        name=f"Tx{n}",
+                        required=required,
+                        current=tribune_current,
+                        achieved=achieved,
+                        description=(
+                            f"Tribune x{n} - Contact {required} unique C/T/S members "
+                            f"(legacy: current status)"
+                        ),
+                    )
                 )
-            )
+                prev_ok = achieved
 
-        # Higher endorsements: Tx15, Tx20, Tx25, etc. in increments of 250
+    # Higher endorsements (legacy): show only once Tx10 achieved
         for n in range(15, 51, 5):  # Tx15, Tx20, Tx25, ..., Tx50
             required = n * 50
             if tribune_current >= required * 0.8:  # Only show if within 80% to avoid clutter
