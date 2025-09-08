@@ -2532,7 +2532,7 @@ def calculate_awards(
 
     # Determine centurion achievement timestamp (first moment hitting 100 uniques)
     centurion_ts: datetime | None = None
-    centurion_members_set: Set[int] = set()
+    centurion_members_set_placeholder: Set[int] = set()
     if unique_count >= 100:
         seen: Set[int] = set()
         for q in chronological:
@@ -2557,7 +2557,9 @@ def calculate_awards(
                 seen.add(nid)
                 if len(seen) == 100:
                     centurion_ts = _qso_timestamp(q)
-                    centurion_members_set = set(seen)
+                    # Retain full Centurion set (future analytics / reporting)
+                    centurion_members_set_placeholder = set(seen)
+                    _ = centurion_members_set_placeholder  # avoid unused warning
                     break
 
     # Award progress - implementing complete SKCC award rules with historical status consideration
@@ -2612,12 +2614,16 @@ def calculate_awards(
             if numeric_id is None or member is None:
                 continue
 
-            # Tribune set accumulation: NEW uniques not in original Centurion 100
+            # Tribune accumulation:
+            # Original implementation excluded members that were part of the initial
+            # Centurion 100 (requiring ONLY "new" members). In practice, SKCC Tribune
+            # credit is granted for 50 UNIQUE C/T/S contacts worked AFTER you achieve
+            # Centurion. A station that was in the first 100 still counts toward Tribune
+            # provided you work them again post‑Centurion and they were C/T/S at QSO time.
+            # Fix: allow any qualifying C/T/S member (including those in centurion_members_set)
+            # to enter the Tribune set upon their FIRST qualifying post‑Centurion QSO.
             if member_qualifies_for_award_at_qso_time_inner(member, 50, q):
-                if (
-                    numeric_id not in centurion_members_set
-                    and numeric_id not in tribune_qualified_members
-                ):
+                if numeric_id not in tribune_qualified_members:
                     tribune_qualified_members.add(numeric_id)
                     tribune_first_seen[numeric_id] = q_ts
                     if len(tribune_qualified_members) == 400 and tx8_ts is None:
@@ -2705,8 +2711,8 @@ def calculate_awards(
                 current=tribune_current,
                 achieved=tribune_achieved,
                 description=(
-                    "After Centurion: work 50 additional NEW unique C/T/S members "
-                    "(both parties C+ at QSO time)"
+                    "After Centurion: work 50 unique C/T/S members (both parties C+ at QSO time). "
+                    "Stations already in your initial 100 count if re-worked post-Centurion."
                 ),
             )
         )
