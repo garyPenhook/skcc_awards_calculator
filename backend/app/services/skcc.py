@@ -2665,10 +2665,14 @@ def calculate_awards(
         tribune_achieved = tribune_current >= 50
         tx8_achieved = tribune_current >= 400 and tx8_ts is not None
 
-        # Tribune endorsements (only if base Tribune achieved)
+        # Tribune endorsements: sequential gating – a higher level only appears
+        # once the previous level has been ACHIEVED. (No preview entries.)
         tribune_endorsements: List[AwardProgress] = []
         if tribune_achieved:
-            for n in range(2, 11):
+            prev_ok = True  # Tx1 (base Tribune) is achieved here
+            for n in range(2, 11):  # Tx2 .. Tx10
+                if not prev_ok:
+                    break
                 required = n * 50
                 achieved = tribune_current >= required
                 tribune_endorsements.append(
@@ -2678,14 +2682,19 @@ def calculate_awards(
                         current=tribune_current,
                         achieved=achieved,
                         description=(
-                            f"Tribune x{n} - Contact {required} unique C/T/S "
-                            "members post-Centurion"
+                            f"Tribune x{n} - Contact {required} unique C/T/S members "
+                            "post-Centurion"
                         ),
                     )
                 )
-            for n in range(15, 51, 5):
-                required = n * 50
-                if tribune_current >= required * 0.8:
+                prev_ok = achieved
+            # Higher endorsements (Tx15, Tx20, ...) only start after Tx10 achieved (500 uniques)
+            if tribune_current >= 500:
+                prev_high_ok = True
+                for n in range(15, 51, 5):
+                    if not prev_high_ok:
+                        break
+                    required = n * 50
                     achieved = tribune_current >= required
                     tribune_endorsements.append(
                         AwardProgress(
@@ -2694,11 +2703,12 @@ def calculate_awards(
                             current=tribune_current,
                             achieved=achieved,
                             description=(
-                                f"Tribune x{n} - Contact {required} unique C/T/S "
-                                "members post-Centurion"
+                                f"Tribune x{n} - Contact {required} unique C/T/S members "
+                                "post-Centurion"
                             ),
                         )
                     )
+                    prev_high_ok = achieved
 
         senator_current = len(senator_qualified_members)
         senator_prerequisite = tx8_achieved
@@ -2811,39 +2821,48 @@ def calculate_awards(
         senator_prerequisite = tribune_current >= 400  # Tribune x8 = 400 contacts
         senator_achieved = senator_prerequisite and senator_current >= 200
 
-        # Add Senator endorsement levels (legacy mode)
-        senator_endorsements = []
-        if senator_achieved:  # Only show endorsements if base Senator is achieved
-            for n in range(2, 11):  # Sx2 through Sx10
-                required = n * 200
-                achieved = senator_current >= required
-                senator_endorsements.append(
+        # Add Tribune endorsements (legacy mode) with sequential gating
+        tribune_endorsements = []
+        if tribune_achieved:
+            prev_ok = True
+            for n in range(2, 11):
+                if not prev_ok:
+                    break
+                required = n * 50
+                achieved = tribune_current >= required
+                tribune_endorsements.append(
                     AwardProgress(
-                        name=f"Sx{n}",
+                        name=f"Tx{n}",
                         required=required,
-                        current=senator_current,
+                        current=tribune_current,
                         achieved=achieved,
                         description=(
-                            f"Senator x{n} - Contact {required} unique T/S members "
-                            f"(legacy: current status)"
+                            f"Tribune x{n} - Contact {required} unique C/T/S members "
+                            "(legacy: current status)"
                         ),
                     )
                 )
-
-        progresses.append(
-            AwardProgress(
-                name="Tribune",
-                required=50,
-                current=tribune_current,
-                achieved=tribune_achieved,
-                description=(
-                    "Contact 50 unique Centurions/Tribunes/Senators (legacy: " "current status)"
-                ),
-            )
-        )
-
-        # Add all Tribune endorsement progress
-        progresses.extend(tribune_endorsements)
+                prev_ok = achieved
+            if tribune_current >= 500:
+                prev_high_ok = True
+                for n in range(15, 51, 5):
+                    if not prev_high_ok:
+                        break
+                    required = n * 50
+                    achieved = tribune_current >= required
+                    tribune_endorsements.append(
+                        AwardProgress(
+                            name=f"Tx{n}",
+                            required=required,
+                            current=tribune_current,
+                            achieved=achieved,
+                            description=(
+                                f"Tribune x{n} - Contact {required} unique C/T/S members "
+                                "(legacy: current status)"
+                            ),
+                        )
+                    )
+                    prev_high_ok = achieved
 
         senator_desc = (
             "Tribune x8 + 200 Tribunes/Senators (legacy: current status). "
