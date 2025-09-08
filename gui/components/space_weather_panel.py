@@ -11,19 +11,18 @@ import threading
 import tkinter as tk
 from tkinter import ttk
 
-from utils.space_weather import summarize_for_ui
+from utils.space_weather import summarize_for_ui_minimal
 
 
 class SpaceWeatherPanel(ttk.LabelFrame):
     """A small panel displaying current space weather metrics.
 
-    Metrics shown (strings already formatted by summarize_for_ui):
-      - Kp index (geomagnetic)
-      - Bz/Bt IMF values
-      - GOES X-ray flux level
-      - Solar Flux Index (SFI)
-      - A index
-      - Last updated timestamp
+    Metrics shown (simplified):
+        - Kp index (geomagnetic)
+        - Solar Flux Index (SFI)
+        - Sunspot Number (SSN)
+        - A index
+        - Last updated timestamp
     """
 
     REFRESH_INTERVAL_MS = 60_000
@@ -31,9 +30,8 @@ class SpaceWeatherPanel(ttk.LabelFrame):
     def __init__(self, master: tk.Widget, *, auto_start: bool = True):  # noqa: D401
         super().__init__(master, text="Space Weather (NOAA SWPC)", padding=10)
         self.kp_var = tk.StringVar(value="Kp —")
-        self.mag_var = tk.StringVar(value="Bz/Bt —")
-        self.xray_var = tk.StringVar(value="X-ray —")
         self.sfi_var = tk.StringVar(value="SFI —")
+        self.ssn_var = tk.StringVar(value="SSN —")
         self.aindex_var = tk.StringVar(value="A —")
         self.updated_var = tk.StringVar(value="Updated —")
 
@@ -46,12 +44,10 @@ class SpaceWeatherPanel(ttk.LabelFrame):
             foreground="green",
         )
         self._kp_label.pack(side=tk.LEFT, padx=(0, 15))
-        self._mag_label = ttk.Label(row, textvariable=self.mag_var)
-        self._mag_label.pack(side=tk.LEFT, padx=(0, 15))
-        self._x_label = ttk.Label(row, textvariable=self.xray_var)
-        self._x_label.pack(side=tk.LEFT, padx=(0, 15))
         self._sfi_label = ttk.Label(row, textvariable=self.sfi_var)
         self._sfi_label.pack(side=tk.LEFT, padx=(0, 15))
+        self._ssn_label = ttk.Label(row, textvariable=self.ssn_var)
+        self._ssn_label.pack(side=tk.LEFT, padx=(0, 15))
         self._a_label = ttk.Label(row, textvariable=self.aindex_var)
         self._a_label.pack(side=tk.LEFT, padx=(0, 15))
         self._upd_label = ttk.Label(row, textvariable=self.updated_var, foreground="gray")
@@ -61,10 +57,9 @@ class SpaceWeatherPanel(ttk.LabelFrame):
 
         # Tooltips (optional lightweight approach)
         self._add_tooltip(self._kp_label, "Kp (geomagnetic activity): lower is better")
-        self._add_tooltip(self._mag_label, "Bz/Bt (IMF nT): negative Bz can worsen conditions")
-        self._add_tooltip(self._x_label, "GOES X-ray: flare level (A/B/C/M/X)")
-        self._add_tooltip(self._sfi_label, "SFI (F10.7 cm solar flux): higher favors higher bands")
-        self._add_tooltip(self._a_label, "A-index (24h geomagnetic activity): lower is better")
+        self._add_tooltip(self._sfi_label, "SFI: higher generally favors higher bands")
+        self._add_tooltip(self._ssn_label, "Sunspot Number (SSN): indicates solar activity level")
+        self._add_tooltip(self._a_label, "A-index: 24h geomagnetic activity; lower is better")
 
         if auto_start:
             # initial fetch
@@ -76,19 +71,18 @@ class SpaceWeatherPanel(ttk.LabelFrame):
 
         def worker():
             try:
-                kp_text, mag_text, xray_text, sfi_text, a_text, updated = summarize_for_ui()
+                kp_text, sfi_text, ssn_text, a_text, updated = summarize_for_ui_minimal()
             except (ValueError, OSError):
-                kp_text, mag_text, xray_text, sfi_text, a_text, updated = (
+                kp_text, sfi_text, ssn_text, a_text, updated = (
                     "Kp —",
-                    "Bz/Bt —",
-                    "X-ray —",
                     "SFI —",
+                    "SSN —",
                     "A —",
                     "Updated —",
                 )
             self.after(
                 0,
-                lambda: self._apply_update(kp_text, mag_text, xray_text, sfi_text, a_text, updated),
+                lambda: self._apply_update(kp_text, sfi_text, ssn_text, a_text, updated),
             )
 
         threading.Thread(target=worker, daemon=True).start()
@@ -97,16 +91,14 @@ class SpaceWeatherPanel(ttk.LabelFrame):
     def _apply_update(
         self,
         kp_text: str,
-        mag_text: str,
-        xray_text: str,
         sfi_text: str,
+        ssn_text: str,
         a_text: str,
         updated: str,
-    ):
+    ) -> None:
         self.kp_var.set(kp_text)
-        self.mag_var.set(mag_text)
-        self.xray_var.set(xray_text)
         self.sfi_var.set(sfi_text)
+        self.ssn_var.set(ssn_text)
         self.aindex_var.set(a_text)
         self.updated_var.set(updated)
         self._color_code()
@@ -150,22 +142,22 @@ class SpaceWeatherPanel(ttk.LabelFrame):
         else:
             self._a_label.configure(foreground="red")
 
-        # Bz coloring
-        bz_val = None
-        m = re.search(r"Bz\s+(-?\d+(?:\.\d)?)\s*nT", self.mag_var.get())
+        # SSN coloring (simple heuristic)
+        ssn_val = None
+        m = re.search(r"SSN\s+(\d+)", self.ssn_var.get())
         if m:
             try:
-                bz_val = float(m.group(1))
+                ssn_val = int(m.group(1))
             except ValueError:
-                bz_val = None
-        if bz_val is None:
-            self._mag_label.configure(foreground="gray")
-        elif bz_val < -5:
-            self._mag_label.configure(foreground="red")
-        elif bz_val < 0:
-            self._mag_label.configure(foreground="orange")
+                ssn_val = None
+        if ssn_val is None:
+            self._ssn_label.configure(foreground="gray")
+        elif ssn_val < 50:
+            self._ssn_label.configure(foreground="orange")
+        elif ssn_val < 100:
+            self._ssn_label.configure(foreground="green")
         else:
-            self._mag_label.configure(foreground="green")
+            self._ssn_label.configure(foreground="blue")
 
     # Simple tooltip (kept local)
     def _add_tooltip(self, widget: tk.Widget, text: str) -> None:  # noqa: D401

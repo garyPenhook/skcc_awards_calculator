@@ -42,6 +42,8 @@ class SpaceWeatherSnapshot:
     xray_time: datetime | None
     sfi: float | None  # 10.7 cm solar radio flux
     sfi_time: datetime | None
+    ssn: float | None  # Sunspot Number (International, if available)
+    ssn_time: datetime | None
     a_index: float | None  # Estimated planetary A-index (fallback Boulder)
     a_time: datetime | None
 
@@ -55,10 +57,10 @@ def _now_utc() -> datetime:
 
 
 def summarize_for_ui() -> tuple[str, str, str, str, str, str]:
-    """Return concise strings for the GUI labels.
+    """Return concise strings for the legacy full GUI labels.
 
-    Returns:
-        (kp_text, mag_text, xray_text, sfi_text, a_text, updated_text)
+    Kept for backward compatibility (Kp, Bz/Bt, X-ray, SFI, A, Updated)
+    even though the streamlined panel now only uses a subset.
     """
     snap = get_space_weather()
 
@@ -114,6 +116,40 @@ def summarize_for_ui() -> tuple[str, str, str, str, str, str]:
     return kp_text, mag_text, xray_text, sfi_text, a_text, updated
 
 
+def summarize_for_ui_minimal() -> tuple[str, str, str, str, str]:
+    """Return concise strings for the simplified GUI panel.
+
+    Returns:
+        (kp_text, sfi_text, ssn_text, a_text, updated_text)
+    """
+    snap = get_space_weather()
+
+    kp_text = "Kp —" if snap.kp is None else f"Kp {snap.kp:.1f}"
+    sfi_text = "SFI —" if snap.sfi is None else f"SFI {snap.sfi:.0f}"
+    ssn_text = "SSN —" if snap.ssn is None else f"SSN {snap.ssn:.0f}"
+    a_text = "A —" if snap.a_index is None else f"A {snap.a_index:.0f}"
+
+    newest = max(
+        [
+            t
+            for t in [
+                snap.kp_time,
+                snap.sfi_time,
+                snap.ssn_time,
+                snap.a_time,
+            ]
+            if t is not None
+        ],
+        default=None,
+    )
+    updated = (
+        "Updated —"
+        if newest is None
+        else f"Updated {newest.astimezone(timezone.utc).strftime('%H:%M')}Z"
+    )
+    return kp_text, sfi_text, ssn_text, a_text, updated
+
+
 def get_space_weather(force: bool = False) -> SpaceWeatherSnapshot:
     """Fetch space weather now-cast with a short cache.
 
@@ -132,7 +168,7 @@ def get_space_weather(force: bool = False) -> SpaceWeatherSnapshot:
     kp_val, kp_time = _fetch_kp()
     bz, bt, sw_time = _fetch_imf_bz_bt()
     xflux, x_time = _fetch_goes_xray()
-    sfi_val, sfi_time, a_val, a_time = _fetch_sfi_a()
+    sfi_val, sfi_time, ssn_val, ssn_time, a_val, a_time = _fetch_sfi_a_ssn()
 
     snap = SpaceWeatherSnapshot(
         kp=kp_val,
@@ -144,6 +180,8 @@ def get_space_weather(force: bool = False) -> SpaceWeatherSnapshot:
         xray_time=x_time,
         sfi=sfi_val,
         sfi_time=sfi_time,
+        ssn=ssn_val,
+        ssn_time=ssn_time,
         a_index=a_val,
         a_time=a_time,
     )
@@ -345,13 +383,21 @@ def _fetch_goes_xray() -> tuple[float | None, datetime | None]:
 
 
 # noqa: PLR0915 - the parsing function is intentionally explicit for robustness
-def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetime | None]:
-    """Fetch latest SFI (F10.7 cm flux) and A-index.
+def _fetch_sfi_a_ssn() -> tuple[
+    float | None,
+    datetime | None,
+    float | None,
+    datetime | None,
+    float | None,
+    datetime | None,
+]:
+    """Fetch latest SFI (F10.7 cm flux), Sunspot Number (SSN) and A-index.
 
     Primary source: NOAA SWPC WWV geophysical alert text, which includes
-    lines like: "Solar flux 140 and estimated planetary A-index 8."
+    lines like: "Solar flux 140 and estimated planetary A-index 8." and may
+    also contain a "Sunspot number 132" line.
 
-    Returns (sfi, sfi_time, a_index, a_time).
+    Returns (sfi, sfi_time, ssn, ssn_time, a_index, a_time).
     """
     # WWV text is updated several times per day and is reliable for hams
     url = "https://services.swpc.noaa.gov/text/wwv.txt"
@@ -387,11 +433,12 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
                 return datetime(year, mon, day, hour, minute, tzinfo=timezone.utc)
         return None
 
-    def parse_sfi_a(lines: list[str]) -> tuple[float | None, float | None]:
+    def parse_sfi_a_ssn(lines: list[str]) -> tuple[float | None, float | None, float | None]:
         import re
 
         sfi_val: float | None = None
         a_val: float | None = None
+        ssn_val: float | None = None
         # Search the conventional summary line
         # Examples:
         # Example line:
@@ -401,6 +448,7 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
         sfi_pat = re.compile(r"Solar\s+flux\s+(\d+(?:\.\d+)?)", re.IGNORECASE)
         a_planet_pat = re.compile(r"planetary\s+A-index\s+(\d+(?:\.\d+)?)", re.IGNORECASE)
         a_boulder_pat = re.compile(r"Boulder\s+A-index\s+(\d+(?:\.\d+)?)", re.IGNORECASE)
+        ssn_pat = re.compile(r"Sunspot\s+number\s+(\d+(?:\.\d+)?)", re.IGNORECASE)
 
         for line in lines:
             if sfi_val is None:
@@ -418,9 +466,14 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
                 if mb:
                     with contextlib.suppress(Exception):
                         a_val = float(mb.group(1))
-            if sfi_val is not None and a_val is not None:
+            if ssn_val is None:
+                msun = ssn_pat.search(line)
+                if msun:
+                    with contextlib.suppress(Exception):
+                        ssn_val = float(msun.group(1))
+            if sfi_val is not None and a_val is not None and ssn_val is not None:
                 break
-        return sfi_val, a_val
+        return sfi_val, ssn_val, a_val
 
     # First try WWV bulletin
     try:
@@ -429,10 +482,10 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
             r.raise_for_status()
             text = r.text
             lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
-            sfi_val, a_val = parse_sfi_a(lines)
+            sfi_val, ssn_val, a_val = parse_sfi_a_ssn(lines)
             ts = parse_issued_timestamp(lines)
-            if (sfi_val is not None or a_val is not None) and ts is not None:
-                return sfi_val, ts, a_val, ts
+            if (sfi_val is not None or a_val is not None or ssn_val is not None) and ts is not None:
+                return sfi_val, ts, ssn_val, ts, a_val, ts
     except Exception:
         pass
 
@@ -444,7 +497,7 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
             r.raise_for_status()
             text = r.text
     except Exception:
-        return None, None, None, None
+        return None, None, None, None, None, None
 
     # Parse basic SFI and A from daily solar data
     # Look for patterns like:
@@ -455,6 +508,7 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
 
         sfi_val: float | None = None
         a_val: float | None = None
+        ssn_val: float | None = None
         for raw in text.splitlines():
             line = raw.strip()
             if not line:
@@ -468,6 +522,15 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
                 if m1:
                     with contextlib.suppress(Exception):
                         sfi_val = float(m1.group(2))
+            if ssn_val is None:
+                mssn = re.search(
+                    r"(sunspot\s+number|sunspot\s*#|ssn)\s*[:=]\s*(\d+(?:\.\d+)?)",
+                    line,
+                    re.IGNORECASE,
+                )
+                if mssn:
+                    with contextlib.suppress(Exception):
+                        ssn_val = float(mssn.group(2))
             if a_val is None:
                 m2 = re.search(
                     r"(\bAp\b|planetary\s*A\s*index|A-index)\s*[:=]\s*(\d+(?:\.\d+)?)",
@@ -477,14 +540,14 @@ def _fetch_sfi_a() -> tuple[float | None, datetime | None, float | None, datetim
                 if m2:
                     with contextlib.suppress(Exception):
                         a_val = float(m2.group(2))
-            if sfi_val is not None and a_val is not None:
+            if sfi_val is not None and a_val is not None and ssn_val is not None:
                 break
 
         # Daily data is reported for the UTC date; use today's 20:00Z as an approximate timestamp
         ts = datetime.now(timezone.utc).replace(hour=20, minute=0, second=0, microsecond=0)
-        return sfi_val, ts, a_val, ts
+        return sfi_val, ts, ssn_val, ts, a_val, ts
     except Exception:
-        return None, None, None, None
+        return None, None, None, None, None, None
 
 
 # ------------------------------ Helpers ---------------------------------
@@ -516,6 +579,7 @@ def _goes_xray_class(flux_w_m2: float) -> tuple[str, float]:
 
 __all__ = [
     "summarize_for_ui",
+    "summarize_for_ui_minimal",
     "get_space_weather",
     "SpaceWeatherSnapshot",
 ]
