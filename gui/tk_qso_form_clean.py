@@ -37,10 +37,10 @@ BUG_IMAGE_PRIMARY = ASSETS_DIR / "bug.png"
 BUG_IMAGE_FALLBACK = ASSETS_DIR / "bug.jpg"
 
 
-# Add backend services for country lookup
+# Add backend services for country lookup (append so top-level models/ wins import resolution)
 BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
-    sys.path.insert(0, str(BACKEND_APP))
+    sys.path.append(str(BACKEND_APP))
 
 try:
     from services.skcc import get_dxcc_country, parse_adif  # type: ignore

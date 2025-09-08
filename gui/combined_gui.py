@@ -23,13 +23,16 @@ from datetime import datetime
 from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 
-# Adjust sys.path early
+# Adjust sys.path early.
+# IMPORTANT: Put project ROOT ahead of backend/app so that "models" resolves
+# to the top-level package (which contains key_type.py) instead of the empty
+# backend/app/models package that was shadowing it.
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))  # ensure top-level models/ is found first
 BACKEND_APP = ROOT / "backend" / "app"
 if str(BACKEND_APP) not in sys.path:
-    sys.path.insert(0, str(BACKEND_APP))
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+    sys.path.append(str(BACKEND_APP))  # append so it does not shadow ROOT
 
 from services.skcc import (  # type: ignore  # noqa: E402
     Member,
